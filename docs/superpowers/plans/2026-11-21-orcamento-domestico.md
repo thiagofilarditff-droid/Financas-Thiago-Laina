@@ -31,7 +31,7 @@
 2. **Same invoice imported twice** (user re-uploads the November PDF): totals and items do not double; the old invoice and its items are replaced; plans created by the first import are reused, not duplicated. → pgTAP test in Task 3 (`save_imported_invoice replaces`) and domain test in Task 6.
 3. **Refunds and advance payments** (negative items, "pagamento antecipado"): negative amounts are kept as negative items, the review screen shows `itens − total` as an "Ajuste" line, and the saved invoice total is the PDF's total, not the item sum. → tests in Task 10 (`adjustment line includes refunds`).
 4. **Due day that does not exist in the month** (card due day 31, or 30 in February): due date clamps to the month's last day, never rolls into the next month. → test in Task 2 (`dueDateFor clamps`).
-5. **Gemini failure modes** (429 free-tier limit, timeout, PDF over 4 MB, model returns malformed JSON): the user sees a specific Portuguese message, can retry, and nothing is saved. → tests in Task 9 (`maps 429`, `rejects oversized`, `rejects invalid json`).
+5. **Gemini failure modes** (429 free-tier limit, timeout, PDF over 3 MB, model returns malformed JSON): the user sees a specific Portuguese message, can retry, and nothing is saved. → tests in Task 9 (`maps 429`, `rejects oversized`, `rejects invalid json`).
 
 ---
 
@@ -364,7 +364,7 @@ expect(descriptionsMatch('NETFLIX.COM', 'Netflix')).toBe(true);
 - Produces:
   - HTTP `POST /api/parse-invoice`, header `Authorization: Bearer <supabase access token>`, body `{ fileBase64: string; cards: { id: string; name: string; bank: string; holder: string }[] }`.
   - 200 body `ParsedInvoice = { detectedBank: string; detectedHolder: string | null; suggestedCardId: string | null; dueDate: string; totalCents: Cents; advancePaymentCents: Cents; items: ParsedItem[] }`.
-  - Errors `{ error: string }`: 401 "Sessão expirada. Entre novamente."; 413 "O PDF passa de 4 MB. Tente exportar a fatura de novo pelo app do banco."; 429 "O limite gratuito da IA foi atingido. Aguarde um minuto e tente de novo."; 502 "Não consegui ler esta fatura. Tente de novo ou lance o total à mão."; 504 on 50 s timeout, same text as 502.
+  - Errors `{ error: string }`: 401 "Sessão expirada. Entre novamente."; 413 "O PDF passa de 3 MB. Tente exportar a fatura de novo pelo app do banco."; 429 "O limite gratuito da IA foi atingido. Aguarde um minuto e tente de novo."; 502 "Não consegui ler esta fatura. Tente de novo ou lance o total à mão."; 504 on 50 s timeout, same text as 502.
   - `parseInvoicePdf(base64: string, cards: …, generate: (req) => Promise<string>): Promise<ParsedInvoice>` — throws `ParseError` with `status` (one of the codes above).
 
 - [ ] **Step 1: Write the failing tests** with a fake `generate`:
@@ -377,7 +377,7 @@ test('maps model JSON to cents', async () => { /* generate returns {"totalAmount
 });
 test('keeps refunds negative', …expect(r.items[1].amountCents).toBe(-4990));
 test('maps 429', … generate rejects with { status: 429 } → ParseError status 429);
-test('rejects oversized', … base64 of 4 MB + 1 byte → status 413, generate not called);
+test('rejects oversized', … base64 of 3 MB + 1 byte → status 413, generate not called);
 test('rejects invalid json', … generate returns 'not json' → status 502);
 ```
 
@@ -391,7 +391,7 @@ test('rejects invalid json', … generate returns 'not json' → status 502);
 ### Task 10: Cards screen, manual invoices and PDF import with review
 
 **Files:**
-- Create: `supabase/migrations/20261121000003_functions.sql`, `supabase/tests/import.test.sql`, `src/features/cards/CardsPage.tsx`, `CardForm.tsx`, `CardInvoices.tsx`, `ManualInstallmentForm.tsx`, `src/features/import/ImportInvoiceDialog.tsx`, `ReviewTable.tsx`, `review.ts`
+- Create: `supabase/migrations/20261121000004_functions.sql`, `supabase/tests/import.test.sql`, `src/features/cards/CardsPage.tsx`, `CardForm.tsx`, `CardInvoices.tsx`, `ManualInstallmentForm.tsx`, `src/features/import/ImportInvoiceDialog.tsx`, `ReviewTable.tsx`, `review.ts`
 - Modify: `src/data/mutations.ts`
 - Test: `src/features/import/review.test.ts`, `supabase/tests/import.test.sql`
 
@@ -415,7 +415,7 @@ test('adjustment line includes refunds', () => {
 - [ ] **Step 4:** Implement the SQL function and `review.ts`; run — PASS.
 - [ ] **Step 5:** Implement UI:
   - Cards page: one tile per active card (name, banco, titular, "•••• 1234", limite usado bar from `cardLimitUsedCents`, próxima fatura), buttons "Importar fatura (PDF)", "Lançar total à mão", "Compra parcelada"; invoice list per card by due month (total, paga ✓ toggle, origem PDF/manual, open items); archived cards hidden behind "Mostrar arquivados".
-  - Import dialog: choose PDF (≤ 4 MB) → card select preselected from `suggestedCardId` → spinner "Lendo a fatura…" → review: header (cartão, vencimento editable, total editable), table rows editable (data, descrição, valor, categoria, parcela `n/N`), a badge per row: "Parcela de compra existente", "Nova compra parcelada (N parcelas)", "Conta fixa: Netflix"; footer "Soma dos itens", "Total da fatura", "Ajuste" (`adjustmentCents`, shown when ≠ 0). If an invoice for that card+month exists: warning "Já existe uma fatura de Dez/2026 para este cartão. Salvar vai substituí-la." Buttons "Salvar fatura" / "Cancelar". Errors from Task 9 shown verbatim with "Tentar de novo".
+  - Import dialog: choose PDF (≤ 3 MB) → card select preselected from `suggestedCardId` → spinner "Lendo a fatura…" → review: header (cartão, vencimento editable, total editable), table rows editable (data, descrição, valor, categoria, parcela `n/N`), a badge per row: "Parcela de compra existente", "Nova compra parcelada (N parcelas)", "Conta fixa: Netflix"; footer "Soma dos itens", "Total da fatura", "Ajuste" (`adjustmentCents`, shown when ≠ 0). If an invoice for that card+month exists: warning "Já existe uma fatura de Dez/2026 para este cartão. Salvar vai substituí-la." Buttons "Salvar fatura" / "Cancelar". Errors from Task 9 shown verbatim with "Tentar de novo".
 - [ ] **Step 6:** Manual: import the same PDF twice — one invoice remains; card limit used unchanged after the second import.
 - [ ] **Step 7:** Commit `feat: cards, manual invoices and pdf import with review`.
 
