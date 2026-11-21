@@ -19,6 +19,8 @@ function IncomeForm({ snapshot, month, initial, onDone }: {
   const [gross, setGross] = useState(initial?.grossCents != null ? formatBRL(initial.grossCents) : '');
   const [discount, setDiscount] = useState(initial?.discountCents != null ? formatBRL(initial.discountCents) : '');
   const [label, setLabel] = useState(initial?.discountLabel ?? 'Desconto');
+  // null = computed from gross − discount. Editing starts from the stored net; changing gross or discount
+  // goes back to the computed value until the user types a net again.
   const [net, setNet] = useState<string | null>(initial ? formatBRL(initial.defaultCents) : null);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -56,9 +58,9 @@ function IncomeForm({ snapshot, month, initial, onDone }: {
           {snapshot.people.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select></label>
       <label className="text-sm font-semibold">Bruto
-        <input className={`${input} mt-1 w-full`} value={gross} onChange={(e) => setGross(e.target.value)} /></label>
+        <input className={`${input} mt-1 w-full`} value={gross} onChange={(e) => { setGross(e.target.value); setNet(null); }} /></label>
       <label className="text-sm font-semibold">Desconto
-        <input className={`${input} mt-1 w-full`} value={discount} onChange={(e) => setDiscount(e.target.value)} /></label>
+        <input className={`${input} mt-1 w-full`} value={discount} onChange={(e) => { setDiscount(e.target.value); if (gross.trim() !== '') setNet(null); }} /></label>
       <label className="text-sm font-semibold">Rótulo do desconto
         <input className={`${input} mt-1 w-full`} value={label} onChange={(e) => setLabel(e.target.value)} /></label>
       <label className="text-sm font-semibold">Líquido
