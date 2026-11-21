@@ -1,4 +1,4 @@
-import type { Payslip, Income, Expense, Snapshot } from './types';
+import type { Payslip, Income, Expense, Snapshot, Card, InstallmentPlan } from './types';
 
 const line = (kind: 'provento' | 'desconto', label: string, amountCents: number, order: number) => ({ kind, label, amountCents, order });
 
@@ -58,4 +58,14 @@ export const seedSnapshot: Snapshot = {
   payslips: [thiagoPayslip, lainaPayslip],
   incomes: [defesaIncome],
   expenses: seedExpenses, entries: [], cards: [], invoices: [], items: [], plans: [], categories: [],
+};
+
+export const nubankCard: Card = {
+  id: 'c1', name: 'Nubank', bank: 'Nubank', brand: 'Mastercard', last4: '1234',
+  holderPersonId: 'p-thiago', limitCents: 1000000, closingDay: 3, dueDay: 10, color: '#8a6fb0', archived: false,
+};
+
+export const tvPlan: InstallmentPlan = {
+  id: 'plan-tv', cardId: 'c1', description: 'MAGAZINE LUIZA', installmentCents: 15000,
+  totalInstallments: 10, firstDueMonth: '2026-11', purchaseDate: null,
 };
