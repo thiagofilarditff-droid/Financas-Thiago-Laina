@@ -4,7 +4,8 @@ import type { PostgrestError } from '@supabase/supabase-js';
 import type { Cents, Income, Month, PayslipLine } from '../domain/types';
 import { SNAPSHOT_KEY } from './snapshot';
 import { supabase } from './supabase';
-import { incomeToRow, monthToDate, payslipLineToRow, incomeOverrideToRow } from './mappers';
+import { fromCents } from '../domain/money';
+import { incomeToRow, monthToDate, incomeOverrideToRow } from './mappers';
 
 /** Throws a readable error when a Supabase write failed. */
 export function check(error: PostgrestError | null): void {
@@ -21,25 +22,17 @@ export function useWrite<TArgs, TResult = void>(write: (args: TArgs) => Promise<
 }
 
 /**
- * Saves a payslip valid from `validFrom`. If the person already has one for that month its lines
- * are replaced (new lines are inserted before the old ones are removed, so a failure never leaves
- * the payslip empty); otherwise a new payslip is created. Older months keep their old payslip.
+ * Saves a payslip valid from `validFrom` through the `save_payslip` Postgres function: one
+ * transaction upserts the payslip and replaces its lines, so a failure leaves the previous lines
+ * intact. Older months keep their old payslip.
  */
 export async function savePayslip(
   householdId: string, personId: string, validFrom: Month, lines: PayslipLine[],
 ): Promise<void> {
-  const { data: slip, error } = await supabase.from('payslips')
-    .upsert({ household_id: householdId, person_id: personId, valid_from: monthToDate(validFrom) },
-      { onConflict: 'person_id,valid_from' })
-    .select('id').single();
-  check(error);
-  const payslipId = (slip as { id: string }).id;
-  const { data: old, error: oldError } = await supabase.from('payslip_lines').select('id').eq('payslip_id', payslipId);
-  check(oldError);
-  const rows = lines.map((l, i) => payslipLineToRow({ ...l, order: i }, payslipId, householdId));
-  if (rows.length) check((await supabase.from('payslip_lines').insert(rows)).error);
-  const oldIds = ((old ?? []) as { id: string }[]).map((r) => r.id);
-  if (oldIds.length) check((await supabase.from('payslip_lines').delete().in('id', oldIds)).error);
+  const p_lines = lines.map((l, i) => ({ kind: l.kind, label: l.label, amount: fromCents(l.amountCents), sort_order: i }));
+  check((await supabase.rpc('save_payslip', {
+    p_household: householdId, p_person: personId, p_valid_from: monthToDate(validFrom), p_lines,
+  })).error);
 }
 
 /** Creates (no id) or updates (id) an income. */

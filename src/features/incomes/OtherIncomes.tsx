@@ -75,11 +75,12 @@ function IncomeForm({ snapshot, month, initial, onDone }: {
   );
 }
 
-function IncomeRow({ income, month, onEdit }: { income: Income; month: Month; onEdit(): void }) {
+function IncomeRow({ income, month, personName, onEdit }: { income: Income; month: Month; personName: string; onEdit(): void }) {
   const householdId = useHouseholdId();
   const override = useWrite((v: number | null) => setIncomeOverride(householdId, income.id, month, v));
   const end = useWrite(() => endIncome(income.id, addMonths(month, -1)));
   const [value, setValue] = useState('');
+  const [confirmEnd, setConfirmEnd] = useState(false);
   const cents = incomeFor(income, month) ?? 0;
   const overridden = income.overrides[month] !== undefined;
   const parsed = parseBRL(value);
@@ -89,7 +90,7 @@ function IncomeRow({ income, month, onEdit }: { income: Income; month: Month; on
     <li className="border-b border-line py-3">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="font-bold">{income.name}</div>
+          <div className="font-bold">{income.name} <span className="text-sm font-semibold text-muted">· {personName}</span></div>
           <div className="text-sm text-muted">
             {income.grossCents !== null && <>Bruto <Money cents={income.grossCents} symbol /> · </>}
             {income.discountCents !== null && <>{income.discountLabel ?? 'Desconto'} - <Money cents={income.discountCents} symbol /> · </>}
@@ -109,8 +110,15 @@ function IncomeRow({ income, month, onEdit }: { income: Income; month: Month; on
         )}
         <span className="flex-1" />
         <button type="button" onClick={onEdit} className="font-bold text-accent">Editar</button>
-        <button type="button" onClick={() => end.mutate()} className="font-bold text-warn"
-          title={`Encerra a receita antes de ${monthLabel(month)}; meses anteriores não mudam`}>Encerrar</button>
+        {confirmEnd ? (
+          <>
+            <button type="button" onClick={() => end.mutate()} className="font-bold text-warn">Confirmar encerramento?</button>
+            <button type="button" onClick={() => setConfirmEnd(false)} className="font-bold text-muted">Cancelar</button>
+          </>
+        ) : (
+          <button type="button" onClick={() => setConfirmEnd(true)} className="font-bold text-warn"
+            title={`Encerra a receita antes de ${monthLabel(month)}; meses anteriores não mudam`}>Encerrar</button>
+        )}
       </div>
       {error && <p role="alert" className="mt-1 text-sm font-semibold text-warn">{error.message}</p>}
     </li>
@@ -130,7 +138,8 @@ export default function OtherIncomes({ snapshot, month }: { snapshot: Snapshot; 
       </div>
       {active.length === 0 && <p className="text-muted">Nenhuma outra receita em {monthLabel(month)}.</p>}
       <ul>
-        {active.map((i) => <IncomeRow key={i.id} income={i} month={month} onEdit={() => setEditing(i)} />)}
+        {active.map((i) => <IncomeRow key={i.id} income={i} month={month}
+          personName={snapshot.people.find((p) => p.id === i.personId)?.name ?? 'Casa'} onEdit={() => setEditing(i)} />)}
       </ul>
       {editing && (
         <IncomeForm key={editing === 'new' ? 'new' : editing.id} snapshot={snapshot} month={month}

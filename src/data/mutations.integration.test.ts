@@ -27,7 +27,13 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('income and payslip writes on the s
         { kind: 'provento', label: 'Teste', amountCents: 150000, order: 0 },
         { kind: 'desconto', label: 'Desc', amountCents: 5000, order: 1 },
       ]);
+      await expect(m.savePayslip(hid, thiago.id, '2099-01', [
+        { kind: 'provento', label: 'Novo', amountCents: 1, order: 0 },
+        { kind: 'x' as 'provento', label: 'Ruim', amountCents: 1, order: 1 },
+      ])).rejects.toThrow();
+      await expect(m.savePayslip(hid, thiago.id, '2099-03', [{ kind: 'x' as 'provento', label: 'Ruim', amountCents: 1, order: 0 }])).rejects.toThrow();
       let snap = await fetchSnapshot(hid);
+      expect(snap.payslips.some((p) => p.validFrom === '2099-03')).toBe(false);
       expect(snap.payslips.filter((p) => p.personId === thiago.id && p.validFrom === '2099-01')).toHaveLength(1);
       expect(payslipTotals(payslipFor(snap.payslips, thiago.id, '2099-02')!).liquidoCents).toBe(145000);
       expect(payslipTotals(payslipFor(snap.payslips, thiago.id, '2026-11')!).liquidoCents).toBe(1183524);
