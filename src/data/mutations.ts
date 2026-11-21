@@ -1,11 +1,11 @@
 // One function per write; feature tasks add theirs here. Every write invalidates the snapshot.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { Cents, Income, Month, PayslipLine } from '../domain/types';
+import type { Cents, Expense, Income, Month, PayslipLine } from '../domain/types';
 import { SNAPSHOT_KEY } from './snapshot';
 import { supabase } from './supabase';
 import { fromCents } from '../domain/money';
-import { incomeToRow, monthToDate, incomeOverrideToRow } from './mappers';
+import { incomeToRow, monthToDate, incomeOverrideToRow, expenseToRow } from './mappers';
 
 /** Throws a readable error when a Supabase write failed. */
 export function check(error: PostgrestError | null): void {
@@ -55,4 +55,55 @@ export async function setIncomeOverride(householdId: string, incomeId: string, m
 /** Ends an income after `endMonth` (inclusive); earlier months are unaffected. */
 export async function endIncome(incomeId: string, endMonth: Month): Promise<void> {
   check((await supabase.from('incomes').update({ end_month: monthToDate(endMonth) }).eq('id', incomeId)).error);
+}
+
+/** Creates (no id) or updates (id) an expense. */
+export async function upsertExpense(householdId: string, e: Omit<Expense, 'id'> & { id?: string }): Promise<void> {
+  const { id, ...row } = expenseToRow({ ...e, id: e.id ?? '' }, householdId);
+  const table = supabase.from('expenses');
+  check((e.id ? await table.update(row).eq('id', e.id) : await table.insert(row)).error);
+}
+
+/** Ends an expense after `endMonth` (inclusive); history is kept. */
+export async function endExpense(expenseId: string, endMonth: Month): Promise<void> {
+  check((await supabase.from('expenses').update({ end_month: monthToDate(endMonth) }).eq('id', expenseId)).error);
+}
+
+/** Deletes an expense that has no persisted entries; otherwise throws (the UI offers "Encerrar"). */
+export async function deleteExpense(expenseId: string): Promise<void> {
+  const { count, error } = await supabase.from('expense_entries').select('id', { count: 'exact', head: true }).eq('expense_id', expenseId);
+  check(error);
+  if (count) throw new Error('Esta despesa já tem lançamentos; encerre-a em vez de excluir.');
+  check((await supabase.from('expenses').delete().eq('id', expenseId)).error);
+}
+
+/**
+ * Upserts the entry of one expense in one month (on `(expense_id, month)`). Missing fields keep the
+ * stored entry, or the expense's default amount for a new one. `paid_at` is set when paid becomes true.
+ */
+export async function setEntry(
+  householdId: string, expenseId: string, m: Month, patch: { amountCents?: Cents; paid?: boolean },
+): Promise<void> {
+  const month = monthToDate(m);
+  const { data: existing, error } = await supabase.from('expense_entries')
+    .select('amount, paid, paid_at').eq('expense_id', expenseId).eq('month', month).maybeSingle();
+  check(error);
+  let amount: number | string;
+  if (patch.amountCents !== undefined) amount = fromCents(patch.amountCents);
+  else if (existing) amount = existing.amount;
+  else {
+    const { data: exp, error: e2 } = await supabase.from('expenses').select('default_amount').eq('id', expenseId).single();
+    check(e2);
+    amount = exp!.default_amount;
+  }
+  const paid = patch.paid ?? existing?.paid ?? false;
+  const paid_at = paid ? (existing?.paid && existing.paid_at ? existing.paid_at : new Date().toISOString()) : null;
+  check((await supabase.from('expense_entries')
+    .upsert({ household_id: householdId, expense_id: expenseId, month, amount, paid, paid_at }, { onConflict: 'expense_id,month' })).error);
+}
+
+/** Adds a category to the household (no-op if it already exists). */
+export async function addCategory(householdId: string, name: string): Promise<void> {
+  check((await supabase.from('categories')
+    .upsert({ household_id: householdId, name }, { onConflict: 'household_id,name', ignoreDuplicates: true })).error);
 }
