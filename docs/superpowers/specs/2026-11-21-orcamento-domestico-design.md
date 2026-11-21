@@ -53,7 +53,10 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
   ver as compras por categoria.
 - **Painel (dashboard):** tela de destaque, com visual caprichado — receitas x
   despesas por mês, distribuição por categoria, evolução no ano e o que falta
-  pagar no mês. Conteúdo exato *a definir com mockups*.
+  pagar no mês. Conteúdo conforme o mockup A: indicadores (receitas líquidas,
+  despesas do mês, falta pagar, sobra prevista), gráfico receitas × despesas no
+  ano, contas do mês com ✓, rosca por categoria, cartões com limite usado e
+  parcelas futuras previstas.
 - **Login:** Thiago e Laina com e-mail e senha próprios, enxergando a mesma casa.
 
 ## 3. Não-objetivos (por enquanto)
@@ -99,7 +102,10 @@ O Thiago escolheu **A**.
 - Abordagem A: React + Vite + TypeScript + Tailwind no front, Supabase como banco
   e login, Vercel como hospedagem. *(Stack de front: decisão do Claude.)*
 - **Visual novo**, diferente do app original, e um **painel (dashboard) caprichado**
-  — pedido do Thiago. Direção visual: *a definir com mockups*.
+  — pedido do Thiago. Direção visual escolhida: **A, "Claro e sereno"** (mockup em
+  https://claude.ai/artifact/6P8KYE1HNiAr9v1aNAjxGZ): fundo claro levemente
+  esverdeado, verde-petróleo como cor principal, fonte Manrope, menu lateral,
+  bastante espaço em branco, saldo previsto do mês em destaque.
 - Leitura do PDF com IA, mantendo o **Gemini** (o Thiago já tem a chave).
   *(Decisão do Claude.)*
 - Cartão guarda só os 4 últimos dígitos. *(Proposta do Claude, sem objeção.)*
