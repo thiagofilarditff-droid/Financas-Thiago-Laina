@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './ui/Layout';
+import IncomesPage from './features/incomes/IncomesPage';
 import { AuthProvider, LoginPage, RequireAuth } from './data/auth';
 
 const Placeholder = ({ title }: { title: string }) => (
@@ -15,7 +16,7 @@ export default function App() {
             <Route element={<Layout />}>
               <Route index element={<Placeholder title="Painel" />} />
               <Route path="mes-a-mes" element={<Placeholder title="Mês a mês" />} />
-              <Route path="receitas" element={<Placeholder title="Receitas e contracheques" />} />
+              <Route path="receitas" element={<IncomesPage />} />
               <Route path="despesas" element={<Placeholder title="Despesas" />} />
               <Route path="cartoes" element={<Placeholder title="Cartões" />} />
             </Route>
