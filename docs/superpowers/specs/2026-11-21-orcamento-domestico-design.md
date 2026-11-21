@@ -24,7 +24,7 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
 
 ## 2. Objetivos
 
-- **Contracheques:** um cartão por pessoa (Thiago, Laina) com proventos,
+- **Contracheques** (referência: `img/contracheques-referencia.png`)**:** um cartão por pessoa (Thiago, Laina) com proventos,
   descontos em folha e líquido, editável. Os descontos em folha (IR, pensão
   militar, FAMHS etc.) são dedução da receita, não despesas. O valor vale do mês
   em que foi editado em diante, até a próxima edição.
@@ -38,8 +38,8 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
   automaticamente.
 - **Visão mensal (planilha anual):** grade JAN–DEZ do ano selecionado; bloco de
   receitas com total; bloco de despesas linha a linha com ✓ nas pagas; contador
-  de lançamentos pagos no ano; totais e saldo por mês. Referência visual: segunda
-  imagem enviada pelo Thiago.
+  de lançamentos pagos no ano; totais e saldo por mês. Referência visual:
+  `img/visao-mensal-referencia.png`.
 - **Cartões de crédito:** cadastro (nome, banco, bandeira, 4 últimos dígitos,
   titular, limite, dia de fechamento, dia de vencimento, cor).
 - **Importação de fatura em PDF:** o usuário sobe o PDF, a IA extrai fatura
@@ -207,6 +207,29 @@ parcelas futuras ainda não importadas aparecem nas faturas seguintes como
 Pré-carregar (via script de seed) os contracheques, a receita do Ministério da
 Defesa e a lista de despesas fixas do `initialData.ts` original, para o app já
 abrir parecido com o que eles usam. *(Decisão do Claude.)*
+
+### 8.6 Regras complementares (definidas após a revisão)
+
+- **Despesa paga no cartão.** Toda despesa tem "forma de pagamento": à vista
+  (boleto, débito, Pix) ou cartão X. Uma despesa fixa paga no cartão (ex.:
+  streaming, celular) **não entra separada nos totais**: ela aparece dentro da
+  fatura do cartão. Na importação, um item da fatura parecido com ela (mesmo
+  cartão, descrição semelhante, valor próximo) é ligado a ela, para não contar
+  duas vezes. *(Decisão do Claude; o app original já tinha esse campo.)*
+- **Cartão antes da fatura chegar.** Enquanto a fatura do mês não foi importada,
+  a linha do cartão na visão mensal mostra o valor **previsto** (parcelas
+  projetadas + despesas fixas pagas no cartão), com visual de previsão. A fatura
+  também pode ser lançada **à mão** (só o total, sem PDF), para quando o PDF
+  falhar ou o banco não for suportado, e pode ser marcada como paga. Importar o
+  PDF depois substitui o lançamento manual. *(Decisão do Claude.)*
+- **Contas e implantação.** O Thiago cria as contas do Supabase, da Vercel e o
+  faturamento do Google, seguindo um guia passo a passo que faz parte da
+  entrega. O desenvolvimento roda contra um Supabase local; a chave do Gemini
+  fica só nas variáveis de ambiente da Vercel. *(Conversa com o Thiago.)*
+- **Faturas reais para teste.** O Thiago fornece PDFs reais de Nubank e
+  Bradesco durante a construção. Eles **não** vão para o repositório; os testes
+  automatizados usam o JSON extraído, com nomes e valores trocados. *(Decisão
+  do Claude.)*
 
 ## 9. Deixado para quem construir
 
