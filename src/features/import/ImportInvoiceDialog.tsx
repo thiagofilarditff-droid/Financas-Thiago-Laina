@@ -169,7 +169,7 @@ function Review({ snapshot, file, parsed, initialCardId, onClose }:
           {parsed.advancePaymentCents > 0 && <> · pagamento antecipado R$ {formatBRL(parsed.advancePaymentCents)}</>}
         </p>
       </div>
-      {existing && dueMonth && <p role="status" className="font-semibold text-warn">{replaceWarning(dueMonth)}</p>}
+      {existing && dueMonth && <p role="status" className="font-semibold text-warn">{replaceWarning(dueMonth, existing.paid)}</p>}
       <ReviewTable rows={rows} reconciled={reconciled} categories={snapshot.categories} expenses={snapshot.expenses}
         totalCents={totalCents} onChange={setRows} />
       {(problem ?? save.error) && (

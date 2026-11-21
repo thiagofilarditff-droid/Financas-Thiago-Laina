@@ -87,3 +87,29 @@ test('review: suggested card, badges, adjustment, replace warning; saves the rev
   expect(payload.items.map((i) => i.plan)).toEqual([{ link: 'p1' }, { create: { first_due_month: '2026-12-01' } }, null, null]);
   expect(file.name).toBe('f.pdf');
 });
+
+test('review: a duplicated row can be removed and a missing item added before saving', async () => {
+  const duplicated = { ...parsed, items: [parsed.items[0], parsed.items[0], parsed.items[2]] };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(duplicated), { status: 200 })));
+  const user = setup();
+  await user.upload(screen.getByLabelText(/Arquivo da fatura/), pdf());
+  await screen.findByLabelText('Cartão');
+  expect(screen.getAllByLabelText(/^Descrição do item/)).toHaveLength(3);
+
+  await user.click(screen.getByRole('button', { name: 'Remover item 2' }));
+  expect(screen.getAllByLabelText(/^Descrição do item/)).toHaveLength(2);
+  expect(screen.getByLabelText('Descrição do item 2')).toHaveValue('NETFLIX.COM');
+
+  await user.click(screen.getByRole('button', { name: '+ Adicionar item' }));
+  expect(screen.getByLabelText('Descrição do item 3')).toHaveValue('');
+  expect(screen.getByRole('button', { name: 'Salvar fatura' })).toBeDisabled();
+  await user.type(screen.getByLabelText('Descrição do item 3'), 'IOF');
+  await user.type(screen.getByLabelText('Valor do item 3'), '5,10');
+  await user.selectOptions(screen.getByLabelText('Categoria do item 3'), 'Outras');
+
+  await user.click(screen.getByRole('button', { name: 'Salvar fatura' }));
+  const [payload] = importInvoice.mock.calls[0] as unknown as [{ items: { description: string; amount: number; plan: unknown }[] }];
+  expect(payload.items.map((i) => [i.description, i.amount, i.plan])).toEqual([
+    ['Loja X 02/10', 100, { link: 'p1' }], ['NETFLIX.COM', 44.9, null], ['IOF', 5.1, null],
+  ]);
+});

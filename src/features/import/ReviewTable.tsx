@@ -1,7 +1,7 @@
 import type { Cents, Expense } from '../../domain/types';
 import type { ReconciledItem } from '../../domain/installments';
 import Money from '../../ui/Money';
-import { adjustmentCents, reviewBadge, sumCents, type ReviewRow } from './review';
+import { adjustmentCents, emptyRow, reviewBadge, sumCents, type ReviewRow } from './review';
 
 interface Props {
   rows: ReviewRow[];
@@ -18,6 +18,8 @@ const badge = 'whitespace-nowrap rounded-full bg-accent-soft px-2 py-0.5 text-xs
 
 export default function ReviewTable({ rows, reconciled, categories, expenses, totalCents, onChange }: Props) {
   const set = (i: number, patch: Partial<ReviewRow>) => onChange(rows.map((r, k) => (k === i ? { ...r, ...patch } : r)));
+  // e.g. an installment the reading listed twice, which would otherwise create a second purchase.
+  const remove = (i: number) => onChange(rows.filter((_, k) => k !== i));
   const valid = reconciled.filter((r): r is ReconciledItem => r !== null);
   const sum = sumCents(valid);
   const adj = totalCents === null ? 0 : adjustmentCents(totalCents, valid);
@@ -27,7 +29,7 @@ export default function ReviewTable({ rows, reconciled, categories, expenses, to
       <thead>
         <tr className="text-left text-xs uppercase tracking-wide text-muted">
           <th className="w-36 py-1">Data</th><th>Descrição</th><th className="w-32">Valor</th>
-          <th className="w-40">Categoria</th><th className="w-20">Parcela</th><th className="w-52" />
+          <th className="w-40">Categoria</th><th className="w-20">Parcela</th><th className="w-52" /><th className="w-20" />
         </tr>
       </thead>
       <tbody>
@@ -53,18 +55,25 @@ export default function ReviewTable({ rows, reconciled, categories, expenses, to
                 onChange={(e) => set(i, { installment: e.target.value })} /></td>
               <td>{rec ? label && <span className={badge}>{label}</span>
                 : <span className="text-xs font-bold text-warn">Corrija este item</span>}</td>
+              <td className="text-right"><button type="button" aria-label={`Remover item ${i + 1}`} onClick={() => remove(i)}
+                className="text-xs font-bold text-warn">Remover</button></td>
             </tr>
           );
         })}
+        <tr>
+          <td colSpan={7} className="py-2">
+            <button type="button" onClick={() => onChange([...rows, emptyRow()])} className="text-sm font-bold text-accent">
+              + Adicionar item</button></td>
+        </tr>
       </tbody>
       <tfoot className="font-bold">
         <tr className="border-t-2 border-line"><td colSpan={2} className="py-1">Soma dos itens</td>
-          <td className="text-right"><Money cents={sum} /></td><td colSpan={3} /></tr>
+          <td className="text-right"><Money cents={sum} /></td><td colSpan={4} /></tr>
         <tr><td colSpan={2} className="py-1">Total da fatura</td>
-          <td className="text-right">{totalCents === null ? '—' : <Money cents={totalCents} />}</td><td colSpan={3} /></tr>
+          <td className="text-right">{totalCents === null ? '—' : <Money cents={totalCents} />}</td><td colSpan={4} /></tr>
         {adj !== 0 && (
           <tr className="text-warn"><td colSpan={2} className="py-1">Ajuste <span className="font-normal text-muted">(encargos, IOF, pagamentos)</span></td>
-            <td className="text-right"><Money cents={adj} /></td><td colSpan={3} /></tr>
+            <td className="text-right"><Money cents={adj} /></td><td colSpan={4} /></tr>
         )}
       </tfoot>
     </table>

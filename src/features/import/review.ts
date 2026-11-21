@@ -21,6 +21,11 @@ export function adjustmentCents(totalCents: Cents, items: { amountCents: Cents }
 /** One editable row of the review table, kept as typed text so partial input is not lost. */
 export interface ReviewRow { date: string; description: string; amount: string; category: string; installment: string }
 
+/** A blank row for an item the reading missed ("+ Adicionar item"); invalid until filled in. */
+export function emptyRow(): ReviewRow {
+  return { date: '', description: '', amount: '', category: '', installment: '' };
+}
+
 export function rowFromParsed(i: ParsedItem): ReviewRow {
   return {
     date: i.date ?? '', description: i.description, amount: formatBRL(i.amountCents), category: i.category,
