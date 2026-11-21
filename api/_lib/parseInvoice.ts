@@ -4,12 +4,12 @@ import type { Cents } from '../../src/domain/types';
 import type { ParsedItem } from '../../src/domain/installments';
 import { buildUserPrompt, CATEGORIES, RESPONSE_SCHEMA, SYSTEM_PROMPT, type CardRef } from './prompt';
 
-export const MAX_PDF_BYTES = 4 * 1024 * 1024;
+export const MAX_PDF_BYTES = 3 * 1024 * 1024;
 export const GENERATE_TIMEOUT_MS = 50_000;
 
 export const ERROR_MESSAGES = {
   401: 'Sessão expirada. Entre novamente.',
-  413: 'O PDF passa de 4 MB. Tente exportar a fatura de novo pelo app do banco.',
+  413: 'O PDF passa de 3 MB. Tente exportar a fatura de novo pelo app do banco.',
   429: 'O limite gratuito da IA foi atingido. Aguarde um minuto e tente de novo.',
   502: 'Não consegui ler esta fatura. Tente de novo ou lance o total à mão.',
   504: 'Não consegui ler esta fatura. Tente de novo ou lance o total à mão.',
@@ -68,11 +68,11 @@ function decodedSize(b64: string): number {
 }
 
 function stripDataPrefix(s: string): string {
-  return s.replace(/^data:[^;,]*;base64,/i, '').trim();
+  return s.replace(/\s+/g, '').replace(/^data:[^;,]*;base64,/i, '');
 }
 
 export function parseInstallment(info: string | null | undefined): { n: number | null; total: number | null } {
-  const m = /(\d{1,3})\s*(?:\/|DE)\s*(\d{1,3})/i.exec(info ?? '');
+  const m = /\b(\d{1,2})\s*(?:\/|DE)\s*(\d{1,2})\b/i.exec(info ?? '');
   if (!m) return { n: null, total: null };
   const n = Number(m[1]);
   const total = Number(m[2]);
@@ -80,18 +80,39 @@ export function parseInstallment(info: string | null | undefined): { n: number |
   return { n, total };
 }
 
-function normalizeDate(raw: string, refYear?: number, refMonth?: number): string | null {
-  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const br = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/.exec(raw.trim());
+const validYmd = (y: number, m: number, d: number) => m >= 1 && m <= 12 && d >= 1 && d <= 31 && y >= 1900;
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * ISO and DD/MM/YY(YY) dates are taken as written. For a bare DD/MM the year is
+ * inferred from the due date: the date must not be after it, and with
+ * installment n the purchase is about n-1 months before the due month, so the
+ * year closest to that month wins.
+ */
+export function normalizeDate(raw: string, due?: string, installmentN?: number | null): string | null {
+  const text = raw.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+  if (iso) return validYmd(+iso[1], +iso[2], +iso[3]) ? `${iso[1]}-${iso[2]}-${iso[3]}` : null;
+  const br = /^(\d{1,2})\/(\d{1,2})(?:\/(\d{2}|\d{4}))?$/.exec(text);
   if (!br) return null;
-  const d = br[1].padStart(2, '0');
-  const mo = br[2].padStart(2, '0');
-  let year: number;
-  if (br[3]) year = br[3].length === 2 ? 2000 + Number(br[3]) : Number(br[3]);
-  else if (refYear !== undefined && refMonth !== undefined) year = Number(mo) > refMonth ? refYear - 1 : refYear;
-  else return null;
-  return `${year}-${mo}-${d}`;
+  const day = +br[1];
+  const month = +br[2];
+  if (br[3]) {
+    const year = br[3].length === 2 ? 2000 + +br[3] : +br[3];
+    return validYmd(year, month, day) ? `${year}-${pad(month)}-${pad(day)}` : null;
+  }
+  const dueMatch = due ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(due) : null;
+  if (!dueMatch || !validYmd(2000, month, day)) return null;
+  const dueYear = +dueMatch[1];
+  const target = dueYear * 12 + (+dueMatch[2] - 1) - ((installmentN ?? 1) - 1);
+  let best: { year: number; dist: number } | null = null;
+  for (let year = dueYear - 3; year <= dueYear; year++) {
+    const iso = `${year}-${pad(month)}-${pad(day)}`;
+    if (iso > due!) continue;
+    const dist = Math.abs(year * 12 + (month - 1) - target);
+    if (!best || dist < best.dist || (dist === best.dist && year > best.year)) best = { year, dist };
+  }
+  return best ? `${best.year}-${pad(month)}-${pad(day)}` : null;
 }
 
 function errorStatus(err: unknown): number | undefined {
@@ -150,14 +171,12 @@ export async function parseInvoicePdf(base64: string, cards: CardRef[], generate
 
   const dueDate = normalizeDate(d.invoiceDueDate);
   if (!dueDate) throw new ParseError(502);
-  const refYear = Number(dueDate.slice(0, 4));
-  const refMonth = Number(dueDate.slice(5, 7));
 
   const items: ParsedItem[] = d.transactions.map((t) => {
     const { n, total } = parseInstallment(t.installmentInfo);
     const category = (CATEGORIES as readonly string[]).includes(t.category ?? '') ? (t.category as string) : 'Outras';
     return {
-      date: t.date ? normalizeDate(t.date, refYear, refMonth) : null,
+      date: t.date ? normalizeDate(t.date, dueDate, n) : null,
       description: t.description.trim(),
       amountCents: toCents(t.amount),
       category,

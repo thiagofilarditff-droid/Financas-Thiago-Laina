@@ -7,3 +7,4 @@ supabase/.temp
 *.pdf
 .vercel
 *.local
+tsconfig.tsbuildinfo

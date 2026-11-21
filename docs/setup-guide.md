@@ -120,6 +120,6 @@ fica **só** no Vercel — nunca em variáveis `VITE_*`, que iriam para o navega
    - `SUPABASE_ANON_KEY` = a chave *anon public* do Supabase
 3. Faça um novo deploy (**Deployments → Redeploy**) para as variáveis valerem.
 
-> O PDF da fatura pode ter no máximo 4 MB. Os PDFs não são guardados: são
+> O PDF da fatura pode ter no máximo 3 MB. Os PDFs não são guardados: são
 > enviados ao Gemini só para a leitura e nada fica salvo até você confirmar a
 > tela de revisão.
