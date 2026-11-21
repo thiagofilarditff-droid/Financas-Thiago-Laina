@@ -190,6 +190,24 @@ export async function createManualPlan(
 }
 
 /**
+ * Deletes an installment purchase (wrong card, typo in the amount...). Real invoice items that pointed at
+ * it are kept (`plan_id` becomes null); only its projected installments disappear.
+ */
+export async function deletePlan(planId: string): Promise<void> {
+  check((await supabase.from('installment_plans').delete().eq('id', planId)).error);
+}
+
+/**
+ * Deletes an invoice through `delete_invoice` (items cascade; imported plans left with no items are removed),
+ * then removes its stored PDF (best effort).
+ */
+export async function deleteInvoice(invoiceId: string): Promise<void> {
+  const { data, error } = await supabase.rpc('delete_invoice', { p_invoice: invoiceId });
+  check(error);
+  await removePdf((data as string | null) ?? null);
+}
+
+/**
  * Saves a reviewed PDF import: uploads the PDF to `invoices/{household}/{uuid}.pdf`, then saves the
  * invoice. If the save fails the uploaded PDF is removed again.
  */

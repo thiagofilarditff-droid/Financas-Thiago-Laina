@@ -194,4 +194,60 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('income and payslip writes on the s
       await supabase.from('cards').delete().like('name', 'Teste cartão%');
     }
   });
+  test('re-import with a corrected amount, deleteInvoice and deletePlan leave no orphan plan', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', LOCAL_URL);
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', ANON);
+    const { supabase } = await import('./supabase');
+    const { fetchSnapshot } = await import('./snapshot');
+    const m = await import('./mutations');
+    const { reconcile } = await import('../domain/installments');
+    const { buildSavePayload } = await import('../features/import/review');
+
+    const { data: auth, error } = await supabase.auth.signInWithPassword({ email: 'thiago@local.test', password: 'senha-local-123' });
+    expect(error).toBeNull();
+    const { data: member } = await supabase.from('household_members').select('household_id').eq('user_id', auth.user!.id).single();
+    const hid = member!.household_id as string;
+    const pdf = () => new File([new Uint8Array([37, 80, 68, 70])], 'fatura.pdf', { type: 'application/pdf' });
+    const importWith = async (cardId: string, amountCents: number) => {
+      const s = await fetchSnapshot(hid);
+      const items = [{ date: '2026-09-02', description: 'Loja Y 03/10', amountCents, category: 'Outras', installmentN: 3, installmentTotal: 10 }];
+      return m.importInvoice(buildSavePayload({ householdId: hid, cardId, dueDate: '2027-02-10', totalCents: amountCents,
+        source: 'pdf', pdfPath: null, items: reconcile(items, s.plans, s.expenses, cardId, '2027-02') }), pdf());
+    };
+
+    let cardId = '';
+    try {
+      await m.upsertCard(hid, { name: 'Teste cartão orfão', bank: 'Nubank', brand: '', last4: null, holderPersonId: null,
+        limitCents: 0, closingDay: 3, dueDay: 10, color: '#0f7a64', archived: false });
+      cardId = (await fetchSnapshot(hid)).cards.find((c) => c.name === 'Teste cartão orfão')!.id;
+      await m.createManualPlan(hid, cardId, 'Geladeira', 25000, 4, '2027-04');
+
+      await importWith(cardId, 10000);
+      await importWith(cardId, 11000); // corrected amount: a new plan, the first one is left with no items
+      let snap = await fetchSnapshot(hid);
+      const plans = snap.plans.filter((p) => p.cardId === cardId);
+      expect(plans.map((p) => p.installmentCents).sort()).toEqual([11000, 25000]);
+
+      const inv = snap.invoices.find((i) => i.cardId === cardId)!;
+      await m.deleteInvoice(inv.id);
+      snap = await fetchSnapshot(hid);
+      expect(snap.invoices.some((i) => i.id === inv.id)).toBe(false);
+      expect(snap.items.some((i) => i.invoiceId === inv.id)).toBe(false);
+      expect(snap.plans.filter((p) => p.cardId === cardId).map((p) => p.description)).toEqual(['Geladeira']);
+      const listed = (await supabase.storage.from('invoices').list(hid)).data!.map((o) => `${hid}/${o.name}`);
+      expect(listed).not.toContain(inv.pdfPath);
+
+      await m.deletePlan(snap.plans.find((p) => p.cardId === cardId)!.id);
+      expect((await fetchSnapshot(hid)).plans.some((p) => p.cardId === cardId)).toBe(false);
+    } finally {
+      if (cardId) {
+        const { data: inv } = await supabase.from('invoices').select('pdf_path').eq('card_id', cardId);
+        const paths = (inv ?? []).map((i) => i.pdf_path).filter(Boolean) as string[];
+        if (paths.length) await supabase.storage.from('invoices').remove(paths);
+        await supabase.from('invoices').delete().eq('card_id', cardId);
+        await supabase.from('installment_plans').delete().eq('card_id', cardId);
+      }
+      await supabase.from('cards').delete().eq('name', 'Teste cartão orfão');
+    }
+  });
 });
