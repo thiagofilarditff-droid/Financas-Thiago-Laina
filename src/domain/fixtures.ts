@@ -1,4 +1,4 @@
-import type { Payslip, Income, Snapshot } from './types';
+import type { Payslip, Income, Expense, Snapshot } from './types';
 
 const line = (kind: 'provento' | 'desconto', label: string, amountCents: number, order: number) => ({ kind, label, amountCents, order });
 
@@ -34,9 +34,28 @@ export const defesaIncome: Income = {
   startMonth: '2026-01', endMonth: null, overrides: {},
 };
 
+const fixedCash = (id: string, name: string, category: string, defaultCents: number, dueDay: number, payrollDeducted: boolean, personId: string | null): Expense => ({
+  id, name, category, isFixed: true, defaultCents, dueDay, payrollDeducted, personId,
+  paymentMethod: 'cash', cardId: null, startMonth: '2026-01', endMonth: null, notes: null,
+});
+
+export const seedExpenses: Expense[] = [
+  fixedCash('e-internet', 'Internet/claro', 'Moradia', 26084, 10, false, null),
+  fixedCash('e-pnr', 'PNR', 'Moradia', 66594, 5, true, null),
+  fixedCash('e-condominio', 'Condomínio SQS 214', 'Moradia', 100000, 10, false, null),
+  fixedCash('e-energia', 'Conta de energia', 'Moradia', 40000, 15, false, null),
+  fixedCash('e-saude-laina', 'Plano de saúde Laina/Valentina', 'Saúde', 258124, 10, true, 'p-laina'),
+  fixedCash('e-saude-thiago', 'Plano de saúde Thiago', 'Saúde', 67737, 10, true, 'p-thiago'),
+  fixedCash('e-claro-laina', 'Claro celular Laina', 'Telefonia', 10190, 15, false, null),
+  fixedCash('e-claro-valentina', 'Claro celular Valentina', 'Telefonia', 3000, 15, false, null),
+  fixedCash('e-claro-thiago', 'Claro Thiago', 'Telefonia', 11900, 15, false, null),
+  fixedCash('e-taya', 'Taya Advogados', 'Outras', 3700, 10, true, null),
+  fixedCash('e-clube', 'Clube da Aeronáutica', 'Outras', 26000, 10, true, null),
+];
+
 export const seedSnapshot: Snapshot = {
   people: [{ id: 'p-thiago', name: 'Thiago' }, { id: 'p-laina', name: 'Laina' }],
   payslips: [thiagoPayslip, lainaPayslip],
   incomes: [defesaIncome],
-  expenses: [], entries: [], cards: [], invoices: [], items: [], plans: [], categories: [],
+  expenses: seedExpenses, entries: [], cards: [], invoices: [], items: [], plans: [], categories: [],
 };
