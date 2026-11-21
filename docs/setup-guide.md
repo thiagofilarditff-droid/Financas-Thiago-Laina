@@ -1,7 +1,13 @@
 # Guia de instalação — Orçamento da Casa
 
-Passo a passo para colocar o app no ar. Este documento cresce a cada parte do
-projeto; por enquanto cobre o **banco de dados (Supabase)**.
+Passo a passo para colocar o app no ar, na ordem abaixo.
+
+| Parte | O que é | Tempo aproximado |
+|-------|---------|------------------|
+| 1 | Supabase: banco de dados, login e dados iniciais | 20–30 min |
+| 2 | Gemini: chave para a leitura automática das faturas | 5 min |
+| 3 | Google Drive: exportar para Planilhas | 15 min |
+| 4 | Vercel: publicar o app, ajustar os logins e primeiro acesso | 20–30 min |
 
 ## Parte 1 — Supabase (banco de dados e login)
 
@@ -154,3 +160,91 @@ de novo atualiza a mesma planilha.
 > Na primeira exportação o Google avisa que o app não foi verificado: clique em
 > **Avançado → Continuar**. O app só acessa arquivos criados por ele mesmo
 > (escopo `drive.file`) e envia os dados apenas para o Google.
+
+---
+
+## Parte 4 — Publicar no Vercel e primeiro acesso
+
+Aqui o app vai para a internet. Você vai precisar dos valores das partes
+anteriores (URL e chave do Supabase, chave do Gemini, ID do cliente Google).
+
+### 1. Importar o projeto
+
+1. Entre em <https://vercel.com> e faça login com a sua conta do GitHub.
+2. Clique em **Add New… → Project**.
+3. Na lista de repositórios, encontre **thiagofilarditff-droid/Financas-Thiago-Laina**
+   e clique em **Import**. (Se não aparecer, clique em *Adjust GitHub App
+   Permissions* e dê acesso a esse repositório.)
+4. Em **Framework Preset**, escolha **Vite**. Deixe os comandos de build como
+   estão (`npm run build`, pasta `dist`).
+5. O Vercel publica a **branch principal (main)**. Confirme que o trabalho já
+   foi incorporado a ela antes de importar.
+
+### 2. Variáveis de ambiente
+
+Ainda na tela de importação, abra **Environment Variables** e cadastre as 7
+variáveis abaixo (nome exatamente como escrito, sem aspas):
+
+| Nome | De onde vem o valor |
+|------|---------------------|
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API → **Project URL** |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → chave **anon public** |
+| `VITE_GOOGLE_CLIENT_ID` | Google Cloud → Credenciais → **ID do cliente** (Parte 3) |
+| `SUPABASE_URL` | O mesmo valor de `VITE_SUPABASE_URL` |
+| `SUPABASE_ANON_KEY` | O mesmo valor de `VITE_SUPABASE_ANON_KEY` |
+| `GEMINI_API_KEY` | Google AI Studio → a chave criada na Parte 2 |
+| `GEMINI_MODEL` | `gemini-flash-latest` |
+
+Nunca use a chave **service_role** do Supabase aqui. Clique em **Deploy** e
+espere terminar (1–3 minutos). O Vercel mostra o endereço do app, algo como
+`https://financas-thiago-laina.vercel.app`. Copie-o.
+
+> Se esquecer alguma variável, adicione em **Settings → Environment Variables**
+> e depois faça **Deployments → ⋯ → Redeploy**.
+
+### 3. Liberar o endereço do Vercel no Supabase
+
+1. No Supabase, abra **Authentication → URL Configuration**.
+2. Em **Site URL**, cole o endereço do Vercel (ex.: `https://financas-thiago-laina.vercel.app`).
+3. Em **Redirect URLs**, clique em **Add URL** e adicione o mesmo endereço, e
+   também `http://localhost:5173` (para usar no seu computador).
+4. **Save**.
+
+### 4. Liberar o endereço no Google (exportar para o Drive)
+
+1. Em <https://console.cloud.google.com/>, vá em **APIs e serviços → Credenciais**
+   e abra o **ID do cliente OAuth** criado na Parte 3.
+2. Em **Origens JavaScript autorizadas**, confirme que o endereço do Vercel está
+   na lista (sem barra no final). Se não estiver, **Adicionar URI** e cole.
+3. **Salvar**. Pode levar alguns minutos para valer.
+
+### 5. Primeiro acesso — lista de conferência
+
+Abra o endereço do Vercel e entre com o e-mail e a senha de cada um.
+
+- [ ] **Laina confirma os valores do contracheque** dela (tela de renda): salário
+  líquido e descontos conferem com o contracheque real? Corrija se preciso.
+- [ ] Na tela **Despesas**, defina a **pessoa** (de qual contracheque é
+  descontado) em **PNR**, **Taya Advogados** e **Clube da Aeronáutica**.
+- [ ] Na tela **Cartões**, cadastre os cartões (apelido e os 4 últimos dígitos —
+  nunca o número inteiro).
+- [ ] **Importe uma fatura** em PDF (até 3 MB), confira a tela de revisão e só
+  então confirme. Nada é salvo antes disso.
+- [ ] Em **Mês a mês**, clique em **Exportar para o Google Drive** uma vez e
+  confira a planilha criada. No aviso de app não verificado: **Avançado → Continuar**.
+- [ ] Teste a ligação entre vocês: Thiago marca **Condomínio** como pago e Laina,
+  depois de recarregar a página, vê o ✓.
+
+### Se algo der errado
+
+- **Erro 429 ou “limite” ao importar a fatura:** o plano gratuito do Gemini
+  tem limite por minuto. Espere um minuto e tente de novo.
+- **PDF maior que 3 MB:** o app não consegue ler. Lance o **total da fatura à
+  mão** (ou gere um PDF menor pelo site do banco).
+- **Erro ao entrar (login) ou volta para a tela de login:** confira o **Site URL**
+  e as **Redirect URLs** no Supabase (passo 3), sem erro de digitação nem barra
+  no final.
+- **Exportar para o Drive dá erro de origem:** confira o passo 4 e se o seu
+  e-mail está em **Usuários de teste** (Parte 3).
+- **A leitura da fatura não funciona depois de publicar:** confira as variáveis
+  do passo 2 e faça um **Redeploy**.
