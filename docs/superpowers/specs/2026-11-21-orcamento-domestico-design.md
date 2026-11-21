@@ -1,6 +1,6 @@
 # Orçamento Doméstico Thiago & Laina — Design
 
-Data: 2026-11-21 · Status: rascunho para aprovação
+Data: 2026-11-21 · Status: aprovado pelo Thiago em 2026-11-21
 
 ## 1. Intenção e porquê
 
