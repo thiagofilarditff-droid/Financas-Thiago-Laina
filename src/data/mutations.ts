@@ -1,11 +1,13 @@
 // One function per write; feature tasks add theirs here. Every write invalidates the snapshot.
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { PostgrestError } from '@supabase/supabase-js';
-import type { Cents, Expense, Income, Month, PayslipLine } from '../domain/types';
+import type { Card, Cents, Expense, Income, Month, PayslipLine } from '../domain/types';
 import { SNAPSHOT_KEY } from './snapshot';
 import { supabase } from './supabase';
 import { fromCents } from '../domain/money';
-import { incomeToRow, monthToDate, incomeOverrideToRow, expenseToRow } from './mappers';
+import { dueDateFor } from '../domain/month';
+import { incomeToRow, monthToDate, incomeOverrideToRow, expenseToRow, cardToRow } from './mappers';
+import type { SavePayload } from '../features/import/review';
 
 /** Throws a readable error when a Supabase write failed. */
 export function check(error: PostgrestError | null): void {
@@ -106,4 +108,99 @@ export async function setEntry(
 export async function addCategory(householdId: string, name: string): Promise<void> {
   check((await supabase.from('categories')
     .upsert({ household_id: householdId, name }, { onConflict: 'household_id,name', ignoreDuplicates: true })).error);
+}
+
+/** Creates (no id) or updates (id) a card. */
+export async function upsertCard(householdId: string, c: Omit<Card, 'id'> & { id?: string }): Promise<void> {
+  const { id, ...row } = cardToRow({ ...c, id: c.id ?? '' }, householdId);
+  const table = supabase.from('cards');
+  check((c.id ? await table.update(row).eq('id', c.id) : await table.insert(row)).error);
+}
+
+/**
+ * Removes a card the user no longer uses: deleted when nothing points at it (no invoices, installment
+ * plans or expenses); otherwise only archived, so its history is kept.
+ */
+export async function archiveCard(cardId: string): Promise<'deleted' | 'archived'> {
+  for (const table of ['invoices', 'installment_plans', 'expenses']) {
+    const { count, error } = await supabase.from(table).select('id', { count: 'exact', head: true }).eq('card_id', cardId);
+    check(error);
+    if (count) {
+      check((await supabase.from('cards').update({ archived: true }).eq('id', cardId)).error);
+      return 'archived';
+    }
+  }
+  check((await supabase.from('cards').delete().eq('id', cardId)).error);
+  return 'deleted';
+}
+
+const BUCKET = 'invoices';
+
+/** Best effort: a leftover PDF object is harmless, so a failed removal is ignored. */
+async function removePdf(path: string | null): Promise<void> {
+  if (!path) return;
+  try {
+    await supabase.storage.from(BUCKET).remove([path]);
+  } catch {
+    // ignored
+  }
+}
+
+async function existingPdfPath(cardId: string, dueMonth: string): Promise<string | null> {
+  const { data, error } = await supabase.from('invoices').select('pdf_path')
+    .eq('card_id', cardId).eq('due_month', dueMonth).maybeSingle();
+  check(error);
+  return data?.pdf_path ?? null;
+}
+
+/** Saves through `save_imported_invoice` (replacing the card's invoice of that month); removes a replaced PDF. */
+async function saveInvoice(payload: SavePayload): Promise<string> {
+  const oldPdf = await existingPdfPath(payload.card_id, payload.due_month);
+  const { data, error } = await supabase.rpc('save_imported_invoice', { payload });
+  check(error);
+  if (oldPdf && oldPdf !== payload.pdf_path) await removePdf(oldPdf);
+  return data as string;
+}
+
+/** Records only the total of a card's invoice for `dueMonth` (no items, no PDF), due on the card's due day. */
+export async function saveManualInvoice(householdId: string, cardId: string, dueMonth: Month, totalCents: Cents): Promise<string> {
+  const { data: card, error } = await supabase.from('cards').select('due_day').eq('id', cardId).single();
+  check(error);
+  return saveInvoice({
+    household_id: householdId, card_id: cardId, due_month: monthToDate(dueMonth),
+    due_date: dueDateFor(dueMonth, card!.due_day as number), total: fromCents(totalCents),
+    source: 'manual', pdf_path: null, items: [],
+  });
+}
+
+/** Marks an invoice paid (paid_at = now) or unpaid. */
+export async function setInvoicePaid(invoiceId: string, paid: boolean): Promise<void> {
+  check((await supabase.from('invoices')
+    .update({ paid, paid_at: paid ? new Date().toISOString() : null }).eq('id', invoiceId)).error);
+}
+
+/** Registers an installment purchase by hand; its installments project onto the following invoices. */
+export async function createManualPlan(
+  householdId: string, cardId: string, description: string, installmentCents: Cents, total: number, firstDueMonth: Month,
+): Promise<void> {
+  check((await supabase.from('installment_plans').insert({
+    household_id: householdId, card_id: cardId, description: description.trim(),
+    installment_amount: fromCents(installmentCents), total_installments: total, first_due_month: monthToDate(firstDueMonth),
+  })).error);
+}
+
+/**
+ * Saves a reviewed PDF import: uploads the PDF to `invoices/{household}/{uuid}.pdf`, then saves the
+ * invoice. If the save fails the uploaded PDF is removed again.
+ */
+export async function importInvoice(payload: SavePayload, pdf: File): Promise<string> {
+  const path = `${payload.household_id}/${crypto.randomUUID()}.pdf`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: 'application/pdf' });
+  if (error) throw new Error(error.message);
+  try {
+    return await saveInvoice({ ...payload, source: 'pdf', pdf_path: path });
+  } catch (e) {
+    await removePdf(path);
+    throw e;
+  }
 }

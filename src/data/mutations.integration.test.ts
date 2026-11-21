@@ -107,4 +107,91 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('income and payslip writes on the s
       await supabase.from('categories').delete().eq('name', 'Teste cat');
     }
   });
+
+  test('cards: manual and imported invoices replace each other, plans link, PDFs are cleaned up', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', LOCAL_URL);
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', ANON);
+    const { supabase } = await import('./supabase');
+    const { fetchSnapshot } = await import('./snapshot');
+    const m = await import('./mutations');
+    const { reconcile, cardLimitUsedCents } = await import('../domain/installments');
+    const { buildSavePayload } = await import('../features/import/review');
+
+    const { data: auth, error } = await supabase.auth.signInWithPassword({ email: 'thiago@local.test', password: 'senha-local-123' });
+    expect(error).toBeNull();
+    const { data: member } = await supabase.from('household_members').select('household_id').eq('user_id', auth.user!.id).single();
+    const hid = member!.household_id as string;
+    const card = { name: 'Teste cartão', bank: 'Nubank', brand: 'Visa', last4: '1234', holderPersonId: null,
+      limitCents: 1000000, closingDay: 3, dueDay: 31, color: '#0f7a64', archived: false };
+    const pdf = () => new File([new Uint8Array([37, 80, 68, 70])], 'fatura.pdf', { type: 'application/pdf' });
+    const items = [
+      { date: '2026-09-02', description: 'Loja X 03/10', amountCents: 10000, category: 'Outras', installmentN: 3, installmentTotal: 10 },
+      { date: '2026-11-03', description: 'Mercado', amountCents: 15000, category: 'Alimentação', installmentN: null, installmentTotal: null },
+    ];
+
+    let cardId = '';
+    try {
+      await m.upsertCard(hid, card);
+      let snap = await fetchSnapshot(hid);
+      cardId = snap.cards.find((c) => c.name === 'Teste cartão')!.id;
+
+      await m.saveManualInvoice(hid, cardId, '2027-02', 50000);
+      snap = await fetchSnapshot(hid);
+      expect(snap.invoices.filter((i) => i.cardId === cardId)).toMatchObject([{ dueDate: '2027-02-28', totalCents: 50000, source: 'manual' }]);
+
+      const importOnce = async () => {
+        const s = await fetchSnapshot(hid);
+        const rec = reconcile(items, s.plans, s.expenses, cardId, '2027-02');
+        return m.importInvoice(buildSavePayload({ householdId: hid, cardId, dueDate: '2027-02-10', totalCents: 26000,
+          source: 'pdf', pdfPath: null, items: rec }), pdf());
+      };
+      await importOnce();
+      snap = await fetchSnapshot(hid);
+      const firstPdf = snap.invoices.find((i) => i.cardId === cardId)!.pdfPath!;
+      const usedAfterFirst = cardLimitUsedCents(snap, cardId, '2026-11');
+      await importOnce();
+      snap = await fetchSnapshot(hid);
+      const invs = snap.invoices.filter((i) => i.cardId === cardId);
+      expect(invs).toHaveLength(1);
+      expect(invs[0]).toMatchObject({ totalCents: 26000, source: 'pdf' });
+      expect(snap.items.filter((i) => i.invoiceId === invs[0].id)).toHaveLength(2);
+      expect(snap.plans.filter((p) => p.cardId === cardId)).toHaveLength(1);
+      expect(cardLimitUsedCents(snap, cardId, '2026-11')).toBe(usedAfterFirst);
+      expect(usedAfterFirst).toBe(26000 + 7 * 10000);
+      const listed = (await supabase.storage.from('invoices').list(hid)).data!.map((o) => `${hid}/${o.name}`);
+      expect(listed).toContain(invs[0].pdfPath);
+      expect(listed).not.toContain(firstPdf);
+
+      await m.setInvoicePaid(invs[0].id, true);
+      snap = await fetchSnapshot(hid);
+      expect(snap.invoices.find((i) => i.id === invs[0].id)).toMatchObject({ paid: true });
+      expect(cardLimitUsedCents(snap, cardId, '2026-11')).toBe(7 * 10000);
+
+      // A failed save removes the uploaded PDF again.
+      const before = (await supabase.storage.from('invoices').list(hid)).data!.length;
+      await expect(m.importInvoice(buildSavePayload({ householdId: hid, cardId, dueDate: '2027-03-40', totalCents: 1,
+        source: 'pdf', pdfPath: null, items: [] }), pdf())).rejects.toThrow();
+      expect((await supabase.storage.from('invoices').list(hid)).data!.length).toBe(before);
+
+      await m.createManualPlan(hid, cardId, 'Geladeira', 25000, 4, '2027-04');
+      expect((await fetchSnapshot(hid)).plans.filter((p) => p.cardId === cardId)).toHaveLength(2);
+
+      expect(await m.archiveCard(cardId)).toBe('archived');
+      expect((await fetchSnapshot(hid)).cards.find((c) => c.id === cardId)!.archived).toBe(true);
+
+      await m.upsertCard(hid, { ...card, name: 'Teste cartão vazio' });
+      const empty = (await fetchSnapshot(hid)).cards.find((c) => c.name === 'Teste cartão vazio')!;
+      expect(await m.archiveCard(empty.id)).toBe('deleted');
+      expect((await fetchSnapshot(hid)).cards.some((c) => c.id === empty.id)).toBe(false);
+    } finally {
+      if (cardId) {
+        const { data: inv } = await supabase.from('invoices').select('pdf_path').eq('card_id', cardId);
+        const paths = (inv ?? []).map((i) => i.pdf_path).filter(Boolean) as string[];
+        if (paths.length) await supabase.storage.from('invoices').remove(paths);
+        await supabase.from('invoices').delete().eq('card_id', cardId);
+        await supabase.from('installment_plans').delete().eq('card_id', cardId);
+      }
+      await supabase.from('cards').delete().like('name', 'Teste cartão%');
+    }
+  });
 });

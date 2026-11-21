@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './ui/Layout';
 import IncomesPage from './features/incomes/IncomesPage';
 import ExpensesPage from './features/expenses/ExpensesPage';
+import CardsPage from './features/cards/CardsPage';
 import { AuthProvider, LoginPage, RequireAuth } from './data/auth';
 
 const Placeholder = ({ title }: { title: string }) => (
@@ -19,7 +20,7 @@ export default function App() {
               <Route path="mes-a-mes" element={<Placeholder title="Mês a mês" />} />
               <Route path="receitas" element={<IncomesPage />} />
               <Route path="despesas" element={<ExpensesPage />} />
-              <Route path="cartoes" element={<Placeholder title="Cartões" />} />
+              <Route path="cartoes" element={<CardsPage />} />
             </Route>
           </Route>
           <Route path="login" element={<LoginPage />} />
