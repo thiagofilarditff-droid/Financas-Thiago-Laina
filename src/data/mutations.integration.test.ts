@@ -92,7 +92,7 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('income and payslip writes on the s
       expect(entry).toMatchObject({ amountCents: 13000, paid: true });
       expect(entry.paidAt).not.toBeNull();
       await m.setEntry(hid, a.id, '2026-11', { paid: false });
-      expect((await fetchSnapshot(hid)).entries.find((e) => e.expenseId === a.id)).toMatchObject({ paid: false, paidAt: null, amountCents: 13000 });
+      expect((await fetchSnapshot(hid)).entries.find((e) => e.expenseId === a.id && e.month === '2026-11')).toMatchObject({ paid: false, paidAt: null, amountCents: 13000 });
 
       await expect(m.deleteExpense(a.id)).rejects.toThrow(/lançamentos/);
       await m.endExpense(a.id, '2026-11');
@@ -248,6 +248,52 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('income and payslip writes on the s
         await supabase.from('installment_plans').delete().eq('card_id', cardId);
       }
       await supabase.from('cards').delete().eq('name', 'Teste cartão orfão');
+    }
+  });
+  test('editing a default keeps past months: expenses and incomes', async () => {
+    vi.stubEnv('VITE_SUPABASE_URL', LOCAL_URL);
+    vi.stubEnv('VITE_SUPABASE_ANON_KEY', ANON);
+    const { supabase } = await import('./supabase');
+    const { fetchSnapshot } = await import('./snapshot');
+    const m = await import('./mutations');
+    const { entryFor } = await import('../domain/expenses');
+    const { incomeFor } = await import('../domain/incomes');
+    const { addMonths, currentMonth } = await import('../domain/month');
+
+    const { data: auth, error } = await supabase.auth.signInWithPassword({ email: 'thiago@local.test', password: 'senha-local-123' });
+    expect(error).toBeNull();
+    const { data: member } = await supabase.from('household_members').select('household_id').eq('user_id', auth.user!.id).single();
+    const hid = member!.household_id as string;
+    const now = currentMonth();
+    const start = addMonths(now, -3);
+    const last = addMonths(now, -1);
+
+    try {
+      await m.upsertExpense(hid, { name: 'Teste hist desp', category: 'Moradia', isFixed: true, defaultCents: 10000, dueDay: 5,
+        payrollDeducted: true, personId: null, paymentMethod: 'cash', cardId: null, startMonth: start, endMonth: null, notes: null });
+      let snap = await fetchSnapshot(hid);
+      const e = snap.expenses.find((x) => x.name === 'Teste hist desp')!;
+      await m.upsertExpense(hid, { ...e, defaultCents: 12000, payrollDeducted: false });
+      snap = await fetchSnapshot(hid);
+      const edited = snap.expenses.find((x) => x.id === e.id)!;
+      expect(edited).toMatchObject({ defaultCents: 12000, payrollDeducted: false });
+      expect(entryFor(edited, snap.entries, start)).toMatchObject({ amountCents: 10000, paid: true });
+      expect(entryFor(edited, snap.entries, last)).toMatchObject({ amountCents: 10000, paid: true });
+      expect(entryFor(edited, snap.entries, now)).toMatchObject({ amountCents: 12000, paid: false });
+      expect(entryFor(edited, snap.entries, addMonths(now, 2))).toMatchObject({ amountCents: 12000 });
+
+      await m.upsertIncome(hid, { name: 'Teste hist renda', personId: null, grossCents: 200000, discountCents: 60000,
+        discountLabel: 'Desconto', defaultCents: 140000, startMonth: start, endMonth: null, overrides: {} });
+      const inc = (await fetchSnapshot(hid)).incomes.find((i) => i.name === 'Teste hist renda')!;
+      await m.upsertIncome(hid, { ...inc, grossCents: 220000, defaultCents: 160000 });
+      const after = (await fetchSnapshot(hid)).incomes.find((i) => i.id === inc.id)!;
+      expect(after.grossCents).toBe(220000);
+      expect(incomeFor(after, start)).toBe(140000);
+      expect(incomeFor(after, last)).toBe(140000);
+      expect(incomeFor(after, now)).toBe(160000);
+    } finally {
+      await supabase.from('expenses').delete().eq('name', 'Teste hist desp');
+      await supabase.from('incomes').delete().eq('name', 'Teste hist renda');
     }
   });
 });

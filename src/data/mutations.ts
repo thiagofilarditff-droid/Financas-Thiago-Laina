@@ -5,7 +5,7 @@ import type { Card, Cents, Expense, Income, Month, PayslipLine } from '../domain
 import { SNAPSHOT_KEY } from './snapshot';
 import { supabase } from './supabase';
 import { fromCents } from '../domain/money';
-import { dueDateFor } from '../domain/month';
+import { currentMonth, dueDateFor } from '../domain/month';
 import { incomeToRow, monthToDate, incomeOverrideToRow, expenseToRow, cardToRow } from './mappers';
 import type { SavePayload } from '../features/import/review';
 
@@ -37,11 +37,19 @@ export async function savePayslip(
   })).error);
 }
 
-/** Creates (no id) or updates (id) an income. */
+/**
+ * Creates (no id) or updates (id) an income. An update goes through `update_income`, which first gives the
+ * months before the current one that have no override the OLD default, so the past does not change.
+ */
 export async function upsertIncome(householdId: string, i: Omit<Income, 'id'> & { id?: string }): Promise<void> {
   const { id, ...row } = incomeToRow({ ...i, id: i.id ?? '' }, householdId);
-  const table = supabase.from('incomes');
-  check((i.id ? await table.update(row).eq('id', i.id) : await table.insert(row)).error);
+  if (!i.id) {
+    check((await supabase.from('incomes').insert(row)).error);
+    return;
+  }
+  check((await supabase.rpc('update_income', {
+    p_income: id, p_row: row, p_current_month: monthToDate(currentMonth()),
+  })).error);
 }
 
 /** Sets (cents) or clears (null) the amount of one income in one month. */
@@ -59,11 +67,20 @@ export async function endIncome(incomeId: string, endMonth: Month): Promise<void
   check((await supabase.from('incomes').update({ end_month: monthToDate(endMonth) }).eq('id', incomeId)).error);
 }
 
-/** Creates (no id) or updates (id) an expense. */
+/**
+ * Creates (no id) or updates (id) an expense. An update goes through `update_expense`: when the amount or
+ * "em folha" changes, months before the current one without an entry get one with the OLD values first, so
+ * the past (and the "depositado" history) does not change.
+ */
 export async function upsertExpense(householdId: string, e: Omit<Expense, 'id'> & { id?: string }): Promise<void> {
   const { id, ...row } = expenseToRow({ ...e, id: e.id ?? '' }, householdId);
-  const table = supabase.from('expenses');
-  check((e.id ? await table.update(row).eq('id', e.id) : await table.insert(row)).error);
+  if (!e.id) {
+    check((await supabase.from('expenses').insert(row)).error);
+    return;
+  }
+  check((await supabase.rpc('update_expense', {
+    p_expense: id, p_row: row, p_current_month: monthToDate(currentMonth()),
+  })).error);
 }
 
 /** Ends an expense after `endMonth` (inclusive); history is kept. */
