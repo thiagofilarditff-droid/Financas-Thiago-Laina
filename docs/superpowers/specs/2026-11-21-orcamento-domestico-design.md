@@ -86,8 +86,8 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
   fatura importada é aceitável.
 - Faturas chegam em **PDF**. Bancos conhecidos pelo código antigo: **Nubank e
   Bradesco** (a confirmar com o Thiago e testar com PDFs reais).
-- A chave do Gemini (projeto com faturamento ativo) nunca vai para o navegador;
-  a chamada à IA é feita no servidor.
+- A chave do Gemini (plano gratuito) nunca vai para o navegador; a chamada à IA
+  é feita no servidor.
 
 ## 6. Abordagens consideradas
 
@@ -108,10 +108,12 @@ O Thiago escolheu **A**.
   https://claude.ai/artifact/6P8KYE1HNiAr9v1aNAjxGZ): fundo claro levemente
   esverdeado, verde-petróleo como cor principal, fonte Manrope, menu lateral,
   bastante espaço em branco, saldo previsto do mês em destaque.
-- Leitura do PDF com IA usando o **Gemini no plano pago** (faturamento ativado na
-  conta Google), para que os dados das faturas não sejam usados pelo Google para
-  treinar modelos. Escolha do Thiago, depois de comparar com Gemini gratuito,
-  Claude e leitura sem IA (regras por banco). Custo esperado: centavos por mês.
+- Leitura do PDF com IA usando o **Gemini no plano gratuito** (mesmo esquema do
+  app original). Escolha do Thiago, ciente de que no plano gratuito o Google pode
+  usar o conteúdo enviado para melhorar seus produtos e há limites de uso por
+  minuto/dia. Passar para o plano pago depois é só ativar faturamento no projeto
+  da chave, sem mudar código. O app deve tratar o erro de limite (429) com uma
+  mensagem clara e permitir tentar de novo.
 - Cartão guarda só os 4 últimos dígitos. *(Proposta do Claude, sem objeção.)*
 - Total da fatura entra como despesa no mês do vencimento. *(Proposta do Claude,
   sem objeção.)*
@@ -224,8 +226,8 @@ abrir parecido com o que eles usam. *(Decisão do Claude.)*
   também pode ser lançada **à mão** (só o total, sem PDF), para quando o PDF
   falhar ou o banco não for suportado, e pode ser marcada como paga. Importar o
   PDF depois substitui o lançamento manual. *(Decisão do Claude.)*
-- **Contas e implantação.** O Thiago cria as contas do Supabase, da Vercel e o
-  faturamento do Google, seguindo um guia passo a passo que faz parte da
+- **Contas e implantação.** O Thiago cria as contas do Supabase e da Vercel e o
+  projeto Google (chave do Gemini e acesso ao Drive), seguindo um guia passo a passo que faz parte da
   entrega. O desenvolvimento roda contra um Supabase local; a chave do Gemini
   fica só nas variáveis de ambiente da Vercel. *(Conversa com o Thiago.)*
 - **Faturas reais para teste.** O Thiago fornece PDFs reais de Nubank e
@@ -264,8 +266,7 @@ contracheque, mas são escolha do casal, então contam como **despesas normais**
 - A exportação é só de ida: editar a Planilha Google não altera o app.
 - Requer um projeto no Google Cloud com a API do Google Sheets/Drive e tela de
   consentimento OAuth em modo "teste" com os e-mails do Thiago e da Laina
-  (entra no guia de configuração). Pode ser o mesmo projeto do faturamento do
-  Gemini.
+  (entra no guia de configuração). Pode ser o mesmo projeto da chave do Gemini.
 
 ## 9. Deixado para quem construir
 
