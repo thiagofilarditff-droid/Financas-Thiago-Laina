@@ -57,6 +57,8 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
   despesas do mês, falta pagar, sobra prevista), gráfico receitas × despesas no
   ano, contas do mês com ✓, rosca por categoria, cartões com limite usado e
   parcelas futuras previstas.
+- **Exportar para o Google Drive:** botão na visão mensal que grava a planilha do
+  ano numa **Planilha Google** no Drive de quem clicou (pedido do Thiago). Ver 8.7.
 - **Login:** Thiago e Laina com e-mail e senha próprios, enxergando a mesma casa.
 
 ## 3. Não-objetivos (por enquanto)
@@ -230,6 +232,24 @@ abrir parecido com o que eles usam. *(Decisão do Claude.)*
   Bradesco durante a construção. Eles **não** vão para o repositório; os testes
   automatizados usam o JSON extraído, com nomes e valores trocados. *(Decisão
   do Claude.)*
+
+### 8.7 Exportar para o Google Drive
+
+- Botão "Exportar para o Google Drive" na visão mensal. Na primeira vez, o
+  usuário autoriza o app na conta Google dele (permissão `drive.file`, que só
+  dá acesso aos arquivos que o próprio app criar).
+- Cria **uma Planilha Google por ano** ("Orçamento Thiago & Laina 2026") e, nas
+  exportações seguintes, **atualiza a mesma planilha** em vez de criar cópias.
+  O link fica salvo e aparece ao lado do botão. *(Proposta do Claude.)*
+- Conteúdo: aba "Mês a mês" igual à grade (receitas, total, despesas linha a
+  linha com valor pago, totais e saldo por mês); aba "Faturas" com as compras de
+  cartão do ano (data, cartão, descrição, categoria, parcela, valor). Valores
+  como números, para dar para somar e filtrar na planilha.
+- A exportação é só de ida: editar a Planilha Google não altera o app.
+- Requer um projeto no Google Cloud com a API do Google Sheets/Drive e tela de
+  consentimento OAuth em modo "teste" com os e-mails do Thiago e da Laina
+  (entra no guia de configuração). Pode ser o mesmo projeto do faturamento do
+  Gemini.
 
 ## 9. Deixado para quem construir
 
