@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest';
 import { seedSnapshot, nubankCard, tvPlan } from './fixtures';
 import { buildDashboard } from './dashboard';
+import { cardLimitUsedCents } from './installments';
 import { compareMonth, currentMonth } from './month';
 import type { Invoice, Snapshot } from './types';
 
@@ -12,7 +13,14 @@ const dezInvoice: Invoice = {
 const s: Snapshot = { ...seedSnapshot, cards: [nubankCard], plans: [tvPlan], invoices: [dezInvoice] };
 
 describe('buildDashboard', () => {
-  const d = buildDashboard(s, '2026-11');
+  // "Today" is Nov/2026 for every test here (bars, limit used).
+  let d: ReturnType<typeof buildDashboard>;
+  beforeAll(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 21, 12));
+    d = buildDashboard(s, '2026-11');
+  });
+  afterAll(() => { vi.useRealTimers(); });
 
   it('KPIs: income, expenses, pending = unpaid bills, surplus and its share of income', () => {
     expect(d.kpis.incomeCents).toBe(2630628);
@@ -76,6 +84,12 @@ describe('buildDashboard', () => {
       invoiceCents: 15000, limitUsedCents: 154137 + 8 * 15000, limitCents: 1000000,
       futureInstallmentsCents: 9 * 15000, lastProjectedMonth: '2027-08', openPlans: 1,
     }]);
+  });
+
+  it('limit used is as of today whatever month is selected, the same as on Cartões', () => {
+    const today = cardLimitUsedCents(s, 'c1', '2026-11');
+    expect(buildDashboard(s, '2027-03').cards[0].limitUsedCents).toBe(today);
+    expect(buildDashboard(s, '2026-01').cards[0].limitUsedCents).toBe(today);
   });
 
   it('a plan with nothing left after the month is not open', () => {

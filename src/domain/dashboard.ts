@@ -83,7 +83,8 @@ export function buildDashboard(s: Snapshot, m: Month): Dashboard {
       cardId: card.id, name: card.name, color: card.color,
       holderName: s.people.find((p) => p.id === card.holderPersonId)?.name ?? null,
       invoiceCents: row.cells[m].cents,
-      limitUsedCents: cardLimitUsedCents(s, card.id, m), limitCents: card.limitCents,
+      // Limit used is as of today (not the selected month), like on Cartões.
+      limitUsedCents: cardLimitUsedCents(s, card.id, today), limitCents: card.limitCents,
       futureInstallmentsCents: futureInstallmentsCents(s.plans, s.items, s.invoices, card.id, m),
       lastProjectedMonth, openPlans: new Set(future.map((p) => p.planId)).size,
     };

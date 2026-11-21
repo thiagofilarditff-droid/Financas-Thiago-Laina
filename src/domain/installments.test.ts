@@ -105,7 +105,17 @@ describe('limit used', () => {
       ...seedSnapshot, cards: [nubankCard], plans: [tv],
       invoices: [invoice('inv-202611', '2026-11', 99999, true), invoice('inv-202612', '2026-12', 154137)],
     };
+    // Latest invoice is Dez/2026 (after today − 1 = Out/2026): only Jan–Ago/2027 installments are added.
     expect(cardLimitUsedCents(s, 'c1', '2026-11')).toBe(274137);
+  });
+  it("counts this month's installments until its invoice arrives", () => {
+    // No invoice yet: Nov/2026 (1/10) is still owed, so all 10 installments count.
+    const s: Snapshot = { ...seedSnapshot, cards: [nubankCard], plans: [tv], invoices: [] };
+    expect(cardLimitUsedCents(s, 'c1', '2026-11')).toBe(10 * 15000);
+    // Last month's invoice (Out/2026) does not hide this month's installment either.
+    expect(cardLimitUsedCents({ ...s, invoices: [invoice('inv-202610', '2026-10', 5000, true)] }, 'c1', '2026-11')).toBe(10 * 15000);
+    // Once this month's invoice is saved, its total replaces the Nov installment.
+    expect(cardLimitUsedCents({ ...s, invoices: [invoice('inv-202611', '2026-11', 40000)] }, 'c1', '2026-11')).toBe(40000 + 9 * 15000);
   });
 });
 

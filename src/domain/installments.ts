@@ -112,9 +112,14 @@ export function reconcile(
   });
 }
 
+/**
+ * Limit used on a card as of `today` (always the current month, never a selected one): unpaid invoices plus
+ * pending installments due after max(latest invoice, last month). This month's installments therefore count
+ * until this month's invoice is saved, and then its total takes their place.
+ */
 export function cardLimitUsedCents(s: Snapshot, cardId: string, today: Month): Cents {
   const invoices = s.invoices.filter((i) => i.cardId === cardId);
   const unpaid = invoices.filter((i) => !i.paid).reduce((sum, i) => sum + i.totalCents, 0);
-  const after = invoices.reduce((m, i) => (compareMonth(i.dueMonth, m) > 0 ? i.dueMonth : m), today);
+  const after = invoices.reduce((m, i) => (compareMonth(i.dueMonth, m) > 0 ? i.dueMonth : m), addMonths(today, -1));
   return unpaid + futureInstallmentsCents(s.plans, s.items, s.invoices, cardId, after);
 }
