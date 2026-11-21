@@ -126,9 +126,15 @@ fica **só** no Vercel — nunca em variáveis `VITE_*`, que iriam para o navega
    - `SUPABASE_ANON_KEY` = a chave *anon public* do Supabase
 3. Faça um novo deploy (**Deployments → Redeploy**) para as variáveis valerem.
 
-> O PDF da fatura pode ter no máximo 3 MB. Os PDFs não são guardados: são
-> enviados ao Gemini só para a leitura e nada fica salvo até você confirmar a
-> tela de revisão.
+> O PDF da fatura pode ter no máximo 3 MB. Na importação ele é enviado ao Gemini
+> só para a leitura, e nada é salvo até vocês confirmarem a tela de revisão.
+> Ao clicar em **Salvar fatura**, o PDF fica guardado num bucket **privado** do
+> Supabase Storage (`invoices`), que só vocês dois conseguem acessar (as regras de
+> acesso liberam apenas os membros da casa, e ninguém mais tem login no app). O PDF
+> é apagado quando a fatura é excluída (**Excluir fatura**) ou substituída por outra
+> importação ou por um total lançado à mão.
+> No plano gratuito do Gemini, o Google pode usar o conteúdo enviado para melhorar
+> os produtos dele; se isso incomodar, use **Lançar total à mão**.
 
 ---
 
