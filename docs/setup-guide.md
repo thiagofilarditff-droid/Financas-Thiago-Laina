@@ -54,7 +54,7 @@ além de vocês dois consegue criar conta. O app não tem tela de cadastro.
    casa já existir, nada é alterado.
 
 O seed cria: Thiago e Laina, as 9 categorias, os dois contracheques (a partir de
-janeiro do ano atual), a remuneração do Ministério da Defesa e as 11 despesas
+janeiro de 2026), a remuneração do Ministério da Defesa e as 11 despesas
 fixas. Cartões não são criados — cadastre os seus na tela **Cartões**.
 
 > **Atenção:** as despesas **PNR**, **Taya Advogados** e **Clube da Aeronáutica**
@@ -87,8 +87,13 @@ npm run db:test     # testes de segurança (RLS) em SQL
 npm run test:integration   # entra como usuária local e carrega o snapshot
 ```
 
+> **Nunca** use `npx supabase db push --include-seed` (nem `db reset --linked`)
+> contra o projeto de produção: isso executaria os arquivos de seed locais. Em
+> produção, o seed é só o `seed.sql`, colado no SQL Editor (passo 5).
+
 Usuários locais (criados por `supabase/seed.local.sql`, que **nunca** deve ser
-executado em produção): `thiago@local.test` e `laina@local.test`, senha
+executado em produção e se recusa a rodar sem o marcador de
+`supabase/seed.local-enable.sql`): `thiago@local.test` e `laina@local.test`, senha
 `senha-local-123`. Para usar o app com o banco local, crie `.env.local` com a
 URL `http://127.0.0.1:54321` e a chave `ANON_KEY` mostrada por
 `npx supabase status`.

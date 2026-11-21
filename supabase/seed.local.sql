@@ -1,4 +1,4 @@
--- SOMENTE DESENVOLVIMENTO LOCAL (roda antes de seed.sql no `supabase db reset`).
+-- SOMENTE DESENVOLVIMENTO LOCAL (roda depois de seed.local-enable.sql e antes de seed.sql no `supabase db reset`).
 -- Cria dois usuários de teste e aponta seed.sql para eles. Nunca execute em produção.
 --   thiago@local.test / senha-local-123
 --   laina@local.test  / senha-local-123
@@ -6,6 +6,9 @@ do $$
 declare
   u record;
 begin
+  if current_setting('seed.allow_local', true) is distinct from 'on' then
+    raise exception 'seed.local.sql é só para desenvolvimento local (falta o marcador de seed.local-enable.sql).';
+  end if;
   for u in select * from (values
     ('11111111-1111-4111-8111-111111111111'::uuid, 'thiago@local.test'),
     ('22222222-2222-4222-8222-222222222222'::uuid, 'laina@local.test')

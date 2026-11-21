@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(15);
 
 -- Two households, one user each (ids fixed so the JWT claims can reference them).
 insert into auth.users (id, email) values
@@ -41,6 +41,15 @@ select lives_ok(
   'A can insert into its own household');
 
 update public.expenses set default_amount = 0 where name = 'Internet B';
+delete from public.households;
+
+select throws_ok(
+  $$ insert into public.households (name) values ('Outra casa') $$,
+  '42501', null, 'members cannot create households');
+
+select throws_ok(
+  $$ insert into storage.objects (bucket_id, name, owner) values ('invoices', 'nao-e-uuid/x.pdf', auth.uid()) $$,
+  '42501', null, 'a malformed folder is denied by policy, not by a cast error');
 delete from public.expenses where name = 'Energia B';
 
 select throws_ok(
@@ -70,6 +79,10 @@ select results_eq(
      where household_id = 'bbbbbbbb-1111-0000-0000-000000000000' order by name $$,
   $$ values ('Energia B'::text, 300::numeric(12,2)), ('Internet B', 200) $$,
   'A cannot update or delete B''s rows');
+
+select is((select count(*) from public.households
+  where id in ('aaaaaaaa-1111-0000-0000-000000000000', 'bbbbbbbb-1111-0000-0000-000000000000'))::int, 2,
+  'members cannot delete households');
 
 select * from finish();
 rollback;

@@ -17,7 +17,10 @@ revoke all on function public.is_member(uuid) from public;
 grant execute on function public.is_member(uuid) to authenticated;
 
 alter table public.households enable row level security;
-create policy household_access on public.households for all to authenticated
+-- Members may read and rename their household, never create or delete it (delete would cascade everything).
+create policy household_read on public.households for select to authenticated
+  using (public.is_member(id));
+create policy household_update on public.households for update to authenticated
   using (public.is_member(id)) with check (public.is_member(id));
 
 -- Memberships are managed by the seed / an admin only; members can read their household's list.
@@ -51,6 +54,9 @@ insert into storage.buckets (id, name, public)
 values ('invoices', 'invoices', false)
 on conflict (id) do nothing;
 
+-- Compared as text so a malformed folder name is simply denied instead of raising a cast error.
 create policy invoices_household_access on storage.objects for all to authenticated
-  using (bucket_id = 'invoices' and public.is_member(((storage.foldername(name))[1])::uuid))
-  with check (bucket_id = 'invoices' and public.is_member(((storage.foldername(name))[1])::uuid));
+  using (bucket_id = 'invoices' and (storage.foldername(name))[1] in (
+    select m.household_id::text from public.household_members m where m.user_id = auth.uid()))
+  with check (bucket_id = 'invoices' and (storage.foldername(name))[1] in (
+    select m.household_id::text from public.household_members m where m.user_id = auth.uid()));

@@ -1,16 +1,28 @@
 import { createContext, useContext, useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
+import { isAuthApiError, type Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from './supabase';
 
 interface AuthValue {
   session: Session | null;
-  /** null while loading or when the user belongs to no household. */
+  /** null while loading, on error, or when the user belongs to no household. */
   householdId: string | null;
+  /** Set when the household lookup failed (network, server), as opposed to "no household". */
+  loadError: string | null;
   loading: boolean;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
+}
+
+export const CONNECTION_ERROR = 'Não consegui conectar. Verifique a internet e tente de novo.';
+export const CREDENTIALS_ERROR = 'E-mail ou senha incorretos.';
+
+/** Maps a sign-in failure to the message shown on the login page. */
+export function signInErrorMessage(error: unknown): string {
+  return isAuthApiError(error) && (error.code === 'invalid_credentials' || error.status === 400)
+    ? CREDENTIALS_ERROR
+    : CONNECTION_ERROR;
 }
 
 const AuthContext = createContext<AuthValue | null>(null);
@@ -27,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const userId = useRef<string | null | undefined>(undefined);
 
@@ -43,9 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       // Deferred: supabase-js forbids awaiting its own calls inside the auth callback.
       setTimeout(async () => {
-        const hid = uid ? await householdOf(uid).catch(() => null) : null;
+        let hid: string | null = null;
+        let err: string | null = null;
+        try {
+          hid = uid ? await householdOf(uid) : null;
+        } catch {
+          err = CONNECTION_ERROR;
+        }
         if (!active || userId.current !== uid) return;
         setHouseholdId(hid);
+        setLoadError(err);
         setLoading(false);
       }, 0);
     }
@@ -59,6 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthValue = {
     session,
     householdId,
+    loadError,
     loading,
     async signIn(email, password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -90,9 +111,19 @@ const Centered = ({ children }: { children: ReactNode }) => (
 
 /** Route guard: renders the child routes only for a signed-in member of a household. */
 export function RequireAuth() {
-  const { session, householdId, loading, signOut } = useAuth();
+  const { session, householdId, loadError, loading, signOut } = useAuth();
   if (loading) return <Centered><p className="text-muted">Carregando…</p></Centered>;
   if (!session) return <Navigate to="/login" replace />;
+  if (loadError) {
+    return (
+      <Centered>
+        <div className="max-w-md rounded-card border border-line bg-card p-6 text-center">
+          <p role="alert" className="mb-4">{loadError}</p>
+          <button className="font-semibold text-accent" onClick={() => window.location.reload()}>Tentar de novo</button>
+        </div>
+      </Centered>
+    );
+  }
   if (!householdId) {
     return (
       <Centered>
@@ -123,8 +154,8 @@ export function LoginPage() {
     try {
       await signIn(email.trim(), password);
       navigate('/', { replace: true });
-    } catch {
-      setError('E-mail ou senha incorretos.');
+    } catch (err) {
+      setError(signInErrorMessage(err));
     } finally {
       setBusy(false);
     }

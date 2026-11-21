@@ -23,7 +23,7 @@ describe.skipIf(!process.env.LOCAL_SUPABASE)('fetchSnapshot on the seeded local 
     expect(snap.people.map((p) => p.name)).toEqual(['Laina', 'Thiago']);
     expect(snap.categories).toHaveLength(9);
     expect(snap.payslips.map((p) => p.lines.length)).toEqual([7, 7]);
-    expect(snap.incomes[0]).toMatchObject({ defaultCents: 140000, grossCents: 200000, startMonth: `${new Date().getFullYear()}-01` });
+    expect(snap.incomes[0]).toMatchObject({ defaultCents: 140000, grossCents: 200000, startMonth: '2026-01' });
     expect(snap.expenses.find((e) => e.name === 'Plano de saúde Laina/Valentina')).toMatchObject({
       defaultCents: 258124, payrollDeducted: true, personId: snap.people.find((p) => p.name === 'Laina')!.id,
     });

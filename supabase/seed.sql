@@ -9,7 +9,7 @@ declare
   -- Só para desenvolvimento local (supabase/seed.local.sql define estes valores).
   local_thiago text := nullif(current_setting('seed.thiago_email', true), '');
   local_laina text := nullif(current_setting('seed.laina_email', true), '');
-  start date := date_trunc('year', current_date)::date; -- 1º mês do ano corrente
+  start date := date '2026-01-01'; -- 1º mês dos contracheques e despesas iniciais
   hid uuid;
   thiago_user uuid;
   laina_user uuid;
