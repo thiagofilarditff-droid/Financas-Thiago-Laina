@@ -97,3 +97,29 @@ executado em produção e se recusa a rodar sem o marcador de
 `senha-local-123`. Para usar o app com o banco local, crie `.env.local` com a
 URL `http://127.0.0.1:54321` e a chave `ANON_KEY` mostrada por
 `npx supabase status`.
+
+## Parte 2 — Gemini (leitura automática das faturas)
+
+A leitura do PDF da fatura é feita pelo Gemini, numa função do Vercel. A chave
+fica **só** no Vercel — nunca em variáveis `VITE_*`, que iriam para o navegador.
+
+### 1. Criar a chave no Google AI Studio
+
+1. Entre em <https://aistudio.google.com/apikey> com uma conta Google.
+2. Clique em **Create API key** e escolha (ou crie) um projeto.
+3. Copie a chave. O plano **gratuito** basta para o uso da casa; se o limite por
+   minuto for atingido, o app avisa e basta tentar de novo em um minuto.
+
+### 2. Colar a chave no Vercel
+
+1. No painel do Vercel, abra o projeto → **Settings → Environment Variables**.
+2. Adicione, para Production (e Preview, se quiser):
+   - `GEMINI_API_KEY` = a chave copiada
+   - `GEMINI_MODEL` = `gemini-flash-latest` (opcional; este é o padrão)
+   - `SUPABASE_URL` = a *Project URL* do Supabase (a mesma do passo 6 da Parte 1)
+   - `SUPABASE_ANON_KEY` = a chave *anon public* do Supabase
+3. Faça um novo deploy (**Deployments → Redeploy**) para as variáveis valerem.
+
+> O PDF da fatura pode ter no máximo 4 MB. Os PDFs não são guardados: são
+> enviados ao Gemini só para a leitura e nada fica salvo até você confirmar a
+> tela de revisão.
