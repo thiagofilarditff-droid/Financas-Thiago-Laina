@@ -5,7 +5,13 @@ import ExpensesPage from './features/expenses/ExpensesPage';
 import CardsPage from './features/cards/CardsPage';
 import GridPage from './features/grid/GridPage';
 import DashboardPage from './features/dashboard/DashboardPage';
-import { AuthProvider, LoginPage, RequireAuth } from './data/auth';
+import { AuthProvider, LoginPage, RequireAuth, useHouseholdId } from './data/auth';
+import ExportButton from './features/export/ExportButton';
+
+function GridWithExport() {
+  const householdId = useHouseholdId();
+  return <GridPage exportSlot={(year) => <ExportButton year={year} householdId={householdId} />} />;
+}
 
 export default function App() {
   return (
@@ -15,7 +21,7 @@ export default function App() {
           <Route element={<RequireAuth />}>
             <Route element={<Layout />}>
               <Route index element={<DashboardPage />} />
-              <Route path="mes-a-mes" element={<GridPage />} />
+              <Route path="mes-a-mes" element={<GridWithExport />} />
               <Route path="receitas" element={<IncomesPage />} />
               <Route path="despesas" element={<ExpensesPage />} />
               <Route path="cartoes" element={<CardsPage />} />

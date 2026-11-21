@@ -204,3 +204,21 @@ export async function importInvoice(payload: SavePayload, pdf: File): Promise<st
     throw e;
   }
 }
+
+/** Remembers the spreadsheet exported for `year` (one per user and year). */
+export async function saveSheetExport(
+  householdId: string, userId: string, year: number, spreadsheetId: string, url: string,
+): Promise<void> {
+  check((await supabase.from('sheet_exports').upsert(
+    { household_id: householdId, user_id: userId, year, spreadsheet_id: spreadsheetId, url },
+    { onConflict: 'user_id,year' },
+  )).error);
+}
+
+/** The spreadsheet this user exported for `year`, if any. */
+export async function findSheetExport(userId: string, year: number): Promise<{ spreadsheetId: string; url: string } | null> {
+  const { data, error } = await supabase.from('sheet_exports')
+    .select('spreadsheet_id, url').eq('user_id', userId).eq('year', year).maybeSingle();
+  check(error);
+  return data ? { spreadsheetId: data.spreadsheet_id as string, url: data.url as string } : null;
+}

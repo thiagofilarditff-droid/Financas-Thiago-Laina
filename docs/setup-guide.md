@@ -123,3 +123,34 @@ fica **só** no Vercel — nunca em variáveis `VITE_*`, que iriam para o navega
 > O PDF da fatura pode ter no máximo 3 MB. Os PDFs não são guardados: são
 > enviados ao Gemini só para a leitura e nada fica salvo até você confirmar a
 > tela de revisão.
+
+---
+
+## Parte 3 — Exportar para o Google Drive (Planilhas)
+
+O botão **Exportar para o Google Drive** (tela *Mês a mês*) cria uma planilha por
+ano na conta Google de quem exporta, com as abas "Mês a mês" e "Faturas". Exportar
+de novo atualiza a mesma planilha.
+
+### 1. Ativar as APIs
+
+1. Acesse <https://console.cloud.google.com/> e crie (ou escolha) um projeto.
+2. Em **APIs e serviços → Biblioteca**, ative **Google Sheets API** e **Google Drive API**.
+
+### 2. Tela de consentimento OAuth
+
+1. Em **APIs e serviços → Tela de consentimento OAuth**, escolha **Externo** e preencha o nome do app.
+2. Deixe o status em **Testing** (não precisa publicar).
+3. Em **Usuários de teste**, adicione os e-mails Google de vocês dois.
+
+### 3. ID do cliente (Web)
+
+1. Em **Credenciais → Criar credenciais → ID do cliente OAuth**, tipo **Aplicativo da Web**.
+2. Em **Origens JavaScript autorizadas**, adicione o domínio do Vercel
+   (ex.: `https://seu-app.vercel.app`) e `http://localhost:5173`.
+3. Copie o **ID do cliente** e cadastre como `VITE_GOOGLE_CLIENT_ID` no Vercel
+   (Settings → Environment Variables) e em `.env.local`. Faça um novo deploy.
+
+> Na primeira exportação o Google avisa que o app não foi verificado: clique em
+> **Avançado → Continuar**. O app só acessa arquivos criados por ele mesmo
+> (escopo `drive.file`) e envia os dados apenas para o Google.
