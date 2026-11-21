@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { seedSnapshot, nubankCard, tvPlan as tv } from './fixtures';
 import {
   normalizeDescription, descriptionsMatch, installmentDueMonth, projectedItemsFor,
-  reconcile, futureInstallmentsCents, cardLimitUsedCents, type ParsedItem,
+  reconcile, futureInstallmentsCents, cardLimitUsedCents, projectedInvoiceFor, type ParsedItem,
 } from './installments';
 import type { Expense, Invoice, InvoiceItem, Snapshot } from './types';
 
@@ -106,5 +106,16 @@ describe('limit used', () => {
       invoices: [invoice('inv-202611', '2026-11', 99999, true), invoice('inv-202612', '2026-12', 154137)],
     };
     expect(cardLimitUsedCents(s, 'c1', '2026-11')).toBe(274137);
+  });
+});
+
+describe('projected invoice', () => {
+  it('pending installments of the month plus fixed expenses paid on the card', () => {
+    const s: Snapshot = { ...seedSnapshot, cards: [nubankCard], plans: [tv], expenses: [...seedSnapshot.expenses, netflix] };
+    const p = projectedInvoiceFor(s, 'c1', '2026-12');
+    expect(p.installments.map((i) => i.installmentN)).toEqual([2]);
+    expect(p.fixed).toEqual([{ name: 'Netflix', cents: 5590 }]);
+    expect(p.totalCents).toBe(15000 + 5590);
+    expect(projectedInvoiceFor(s, 'c2', '2026-12').totalCents).toBe(0);
   });
 });

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import type { Card, Invoice, Month, Snapshot } from '../../domain/types';
 import { addMonths, compareMonth, monthLabel } from '../../domain/month';
 import { formatBRL, parseBRL } from '../../domain/money';
-import { projectedItemsFor } from '../../domain/installments';
-import { setInvoicePaid, useWrite } from '../../data/mutations';
+import { installmentDueMonth, projectedInvoiceFor } from '../../domain/installments';
+import { deleteInvoice, setInvoicePaid, useWrite } from '../../data/mutations';
 import { adjustmentCents } from '../import/review';
 import MonthPicker from '../../ui/MonthPicker';
 import Money from '../../ui/Money';
@@ -12,11 +12,15 @@ import { input } from './CardForm';
 const badge = 'rounded-full bg-accent-soft px-2 py-0.5 text-xs font-bold text-accent';
 const dmy = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : '—');
 
-export const replaceWarning = (m: Month) => `Já existe uma fatura de ${monthLabel(m)} para este cartão. Salvar vai substituí-la.`;
+export const replaceWarning = (m: Month, paid = false) =>
+  `Já existe uma fatura de ${monthLabel(m)}${paid ? ' (paga)' : ''} para este cartão. Salvar vai substituí-la.`;
 
 function InvoiceRow({ invoice, snapshot }: { invoice: Invoice; snapshot: Snapshot }) {
   const [open, setOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const paid = useWrite((v: boolean) => setInvoicePaid(invoice.id, v));
+  const remove = useWrite(() => deleteInvoice(invoice.id));
+  const error = (paid.error ?? remove.error) as Error | null;
   const items = snapshot.items.filter((i) => i.invoiceId === invoice.id);
   const adj = adjustmentCents(invoice.totalCents, items);
   return (
@@ -35,8 +39,18 @@ function InvoiceRow({ invoice, snapshot }: { invoice: Invoice; snapshot: Snapsho
           className="w-24 text-sm font-bold text-accent disabled:text-muted disabled:opacity-60">
           {items.length === 0 ? 'Sem itens' : open ? 'Ocultar itens' : `Ver itens (${items.length})`}
         </button>
+        {confirmDelete ? (
+          <span className="flex gap-2">
+            <button type="button" disabled={remove.isPending} onClick={() => remove.mutate()}
+              title="Apaga a fatura, os itens e o PDF guardado" className="text-sm font-bold text-warn">Confirmar exclusão?</button>
+            <button type="button" onClick={() => setConfirmDelete(false)} className="text-sm font-bold text-muted">Cancelar</button>
+          </span>
+        ) : (
+          <button type="button" onClick={() => { remove.reset(); setConfirmDelete(true); }}
+            className="text-sm font-bold text-warn">Excluir fatura</button>
+        )}
       </div>
-      {paid.error && <p role="alert" className="text-sm font-semibold text-warn">{(paid.error as Error).message}</p>}
+      {error && <p role="alert" className="text-sm font-semibold text-warn">{error.message}</p>}
       {open && (
         <table className="mt-2 w-full text-sm">
           <tbody>
@@ -62,18 +76,29 @@ function InvoiceRow({ invoice, snapshot }: { invoice: Invoice; snapshot: Snapsho
   );
 }
 
-/** Invoices of one card by due month (newest first), followed by months that only have projected installments. */
+/**
+ * Months from `today` to the card's last installment (at least through next month) that have no invoice yet,
+ * with what their invoice is expected to hold: installments plus fixed expenses paid on the card.
+ */
+function projectedMonthsOf(card: Card, snapshot: Snapshot, today: Month, invoiced: Set<Month>) {
+  const last = snapshot.plans.filter((p) => p.cardId === card.id)
+    .map((p) => installmentDueMonth(p, p.totalInstallments))
+    .reduce((a, b) => (compareMonth(b, a) > 0 ? b : a), addMonths(today, 1));
+  const out: ({ month: Month } & ReturnType<typeof projectedInvoiceFor>)[] = [];
+  for (let m = today; compareMonth(m, last) <= 0; m = addMonths(m, 1)) {
+    if (invoiced.has(m)) continue;
+    // The whole snapshot goes in, so installments already invoiced are not counted again.
+    const p = projectedInvoiceFor(snapshot, card.id, m);
+    if (p.installments.length > 0 || p.fixed.length > 0) out.push({ month: m, ...p });
+  }
+  return out;
+}
+
+/** Invoices of one card by due month (newest first), followed by months that only have projected values. */
 export default function CardInvoices({ card, snapshot, today }: { card: Card; snapshot: Snapshot; today: Month }) {
   const invoices = snapshot.invoices.filter((i) => i.cardId === card.id)
     .sort((a, b) => compareMonth(b.dueMonth, a.dueMonth));
-  const invoiced = new Set(invoices.map((i) => i.dueMonth));
-  const projectedMonths = [...new Set(snapshot.plans.filter((p) => p.cardId === card.id).flatMap((p) =>
-    Array.from({ length: p.totalInstallments }, (_, k) => addMonths(p.firstDueMonth, k))))]
-    .filter((m) => !invoiced.has(m) && compareMonth(m, today) >= 0)
-    .sort(compareMonth)
-    // All household items/invoices/plans go in, so installments already invoiced are not counted again.
-    .map((m) => ({ month: m, items: projectedItemsFor(snapshot.plans, snapshot.items, snapshot.invoices, card.id, m) }))
-    .filter((p) => p.items.length > 0);
+  const projectedMonths = projectedMonthsOf(card, snapshot, today, new Set(invoices.map((i) => i.dueMonth)));
 
   return (
     <div>
@@ -81,13 +106,14 @@ export default function CardInvoices({ card, snapshot, today }: { card: Card; sn
       <ul>{invoices.map((i) => <InvoiceRow key={i.id} invoice={i} snapshot={snapshot} />)}</ul>
       {projectedMonths.length > 0 && (
         <ul className="mt-2">
-          {projectedMonths.map(({ month: m, items: proj }) => (
+          {projectedMonths.map(({ month: m, installments, fixed, totalCents }) => (
             <li key={m} className="flex items-center gap-4 border-b border-dashed border-line py-2 text-muted">
               <div className="w-24 font-bold">{monthLabel(m)}</div>
               <div className="flex-1 text-sm italic">
-                prevista · {proj.map((p) => `${p.description} ${p.installmentN}/${p.installmentTotal}`).join(', ')}
+                prevista · {[...installments.map((p) => `${p.description} ${p.installmentN}/${p.installmentTotal}`),
+                  ...fixed.map((f) => f.name)].join(', ')}
               </div>
-              <div className="font-bold italic"><Money cents={proj.reduce((s, p) => s + p.amountCents, 0)} symbol /></div>
+              <div className="font-bold italic"><Money cents={totalCents} symbol /></div>
             </li>
           ))}
         </ul>
@@ -133,7 +159,7 @@ export function ManualInvoiceForm({ card, snapshot, month, busy, error, onCancel
           <input className={`${input} mt-1 block`} value={total} inputMode="decimal" onChange={(e) => setTotal(e.target.value)} /></label>
         {existing && <span className="pb-1 text-sm text-muted">atual: R$ {formatBRL(existing.totalCents)}</span>}
       </div>
-      {existing && <p role="status" className="text-sm font-semibold text-warn">{replaceWarning(dueMonth)}</p>}
+      {existing && <p role="status" className="text-sm font-semibold text-warn">{replaceWarning(dueMonth, existing.paid)}</p>}
       {shown && <p role="alert" className="text-sm font-semibold text-warn">{shown}</p>}
       <div className="flex justify-end gap-3">
         <button type="button" onClick={onCancel} className="rounded-inner border border-line bg-card px-4 py-1.5 font-bold">Cancelar</button>

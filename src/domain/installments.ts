@@ -1,6 +1,6 @@
 import type { Cents, Expense, InstallmentPlan, Invoice, InvoiceItem, Month, Snapshot } from './types';
 import { addMonths, compareMonth } from './month';
-import { isActiveIn } from './expenses';
+import { cardFixedExpensesFor, isActiveIn } from './expenses';
 
 export type ProjectedItem = {
   planId: string; cardId: string; description: string; amountCents: Cents;
@@ -73,6 +73,19 @@ export function futureInstallmentsCents(
   return pendingInstallments(plans, items, cardId)
     .filter((p) => compareMonth(p.dueMonth, after) > 0)
     .reduce((sum, p) => sum + p.amountCents, 0);
+}
+
+/**
+ * What a card's invoice for `dueMonth` is expected to hold before it arrives: the pending installments due
+ * that month plus the fixed expenses paid on the card. The same rule as the grid's projected card cell.
+ */
+export function projectedInvoiceFor(s: Snapshot, cardId: string, dueMonth: Month): {
+  installments: ProjectedItem[]; fixed: { name: string; cents: Cents }[]; totalCents: Cents;
+} {
+  const installments = projectedItemsFor(s.plans, s.items, s.invoices, cardId, dueMonth);
+  const fixed = cardFixedExpensesFor(s, cardId, dueMonth).map((r) => ({ name: r.expense.name, cents: r.entry.amountCents }));
+  const totalCents = installments.reduce((sum, p) => sum + p.amountCents, 0) + fixed.reduce((sum, f) => sum + f.cents, 0);
+  return { installments, fixed, totalCents };
 }
 
 export function reconcile(

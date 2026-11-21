@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Card, Month, Snapshot } from '../../domain/types';
 import { addMonths, currentMonth, monthLabel } from '../../domain/month';
-import { isActiveIn } from '../../domain/expenses';
-import { cardLimitUsedCents, projectedItemsFor } from '../../domain/installments';
+import { cardLimitUsedCents, projectedInvoiceFor } from '../../domain/installments';
 import { useSnapshot } from '../../data/snapshot';
 import { useHouseholdId } from '../../data/auth';
 import { archiveCard, createManualPlan, saveManualInvoice, upsertCard, useWrite } from '../../data/mutations';
@@ -11,6 +11,7 @@ import ImportInvoiceDialog from '../import/ImportInvoiceDialog';
 import CardForm, { type CardDraft } from './CardForm';
 import CardInvoices, { ManualInvoiceForm } from './CardInvoices';
 import ManualInstallmentForm, { type ManualPlanDraft } from './ManualInstallmentForm';
+import CardPlans from './CardPlans';
 
 type Panel = 'edit' | 'manual' | 'plan' | null;
 const action = 'rounded-inner border border-line px-3 py-1.5 text-sm font-bold text-accent';
@@ -27,16 +28,19 @@ function NextInvoice({ card, snapshot }: { card: Card; snapshot: Snapshot }) {
   if (inv) {
     return <>Próxima fatura: {monthLabel(m)} · <Money cents={inv.totalCents} symbol />{inv.paid && ' ✓'}</>;
   }
-  // Before the invoice arrives: projected installments + fixed expenses paid on this card.
-  const projected = projectedItemsFor(snapshot.plans, snapshot.items, snapshot.invoices, card.id, m)
-    .reduce((s, p) => s + p.amountCents, 0)
-    + snapshot.expenses.filter((e) => e.isFixed && e.paymentMethod === 'card' && e.cardId === card.id && isActiveIn(e, m))
-      .reduce((s, e) => s + e.defaultCents, 0);
+  // Before the invoice arrives: projected installments + fixed expenses paid on this card (same rule as the grid).
+  const projected = projectedInvoiceFor(snapshot, card.id, m).totalCents;
   return <>Próxima fatura: {monthLabel(m)} · <span className="italic">prevista <Money cents={projected} symbol /></span></>;
 }
 
-function CardTile({ card, snapshot, onImport }: { card: Card; snapshot: Snapshot; onImport(): void }) {
+function CardTile({ card, snapshot, highlighted = false, onImport }:
+  { card: Card; snapshot: Snapshot; highlighted?: boolean; onImport(): void }) {
   const householdId = useHouseholdId();
+  const titleId = useId();
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [highlighted]);
   const today = currentMonth();
   const [panel, setPanel] = useState<Panel>(null);
   const [confirmArchive, setConfirmArchive] = useState(false);
@@ -55,12 +59,13 @@ function CardTile({ card, snapshot, onImport }: { card: Card; snapshot: Snapshot
   const error = (archive.error as Error | null)?.message;
 
   return (
-    <section className={`rounded-card border border-line bg-card p-5 ${card.archived ? 'opacity-70' : ''}`}>
+    <section ref={ref} aria-labelledby={titleId} aria-current={highlighted ? 'true' : undefined}
+      className={`rounded-card border bg-card p-5 ${highlighted ? 'border-accent ring-2 ring-accent' : 'border-line'} ${card.archived ? 'opacity-70' : ''}`}>
       <div className="flex items-start justify-between gap-6">
         <div className="flex items-start gap-3">
           <span className="mt-1 h-8 w-2 rounded-full" style={{ background: card.color }} />
           <div>
-            <div className="text-lg font-extrabold">{card.name}{card.archived && <span className="ml-2 text-sm text-muted">(arquivado)</span>}</div>
+            <div className="text-lg font-extrabold"><span id={titleId}>{card.name}</span>{card.archived && <span className="ml-2 text-sm text-muted">(arquivado)</span>}</div>
             <div className="text-sm text-muted">
               {[card.bank, card.brand, holder, card.last4 ? `•••• ${card.last4}` : null].filter(Boolean).join(' · ')}
             </div>
@@ -132,6 +137,11 @@ function CardTile({ card, snapshot, onImport }: { card: Card; snapshot: Snapshot
       )}
 
       <div className="mt-4">
+        <h3 className="mb-1 text-sm font-extrabold uppercase tracking-wide text-muted">Compras parceladas</h3>
+        <CardPlans card={card} snapshot={snapshot} today={today} />
+      </div>
+
+      <div className="mt-4">
         <h3 className="mb-1 text-sm font-extrabold uppercase tracking-wide text-muted">Faturas</h3>
         <CardInvoices card={card} snapshot={snapshot} today={today} />
       </div>
@@ -146,12 +156,16 @@ export default function CardsPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [importFor, setImportFor] = useState<string | null>(null);
   const create = useWrite((c: CardDraft) => upsertCard(householdId, c));
+  // Links from the grid and the dashboard open /cartoes?card=<id>.
+  const [params] = useSearchParams();
+  const focusId = params.get('card');
 
   if (isLoading) return <p className="text-muted">Carregando…</p>;
   if (error || !snapshot) return <p role="alert" className="font-semibold text-warn">Não consegui carregar os dados.</p>;
 
   const active = snapshot.cards.filter((c) => !c.archived);
   const archived = snapshot.cards.filter((c) => c.archived);
+  const archivedOpen = showArchived || archived.some((c) => c.id === focusId);
 
   return (
     <div className="flex flex-col gap-6">
@@ -165,15 +179,16 @@ export default function CardsPage() {
           onSubmit={(c) => create.mutate(c, { onSuccess: () => setAdding(false) })} />
       )}
       {active.length === 0 && !adding && <p className="text-muted">Nenhum cartão cadastrado.</p>}
-      {active.map((c) => <CardTile key={c.id} card={c} snapshot={snapshot} onImport={() => setImportFor(c.id)} />)}
+      {active.map((c) => <CardTile key={c.id} card={c} snapshot={snapshot} highlighted={c.id === focusId}
+        onImport={() => setImportFor(c.id)} />)}
       {archived.length > 0 && (
         <div>
-          <button type="button" className="text-sm font-bold text-muted" onClick={() => setShowArchived(!showArchived)}>
-            {showArchived ? 'Ocultar arquivados' : `Mostrar arquivados (${archived.length})`}
+          <button type="button" className="text-sm font-bold text-muted" onClick={() => setShowArchived(!archivedOpen)}>
+            {archivedOpen ? 'Ocultar arquivados' : `Mostrar arquivados (${archived.length})`}
           </button>
-          {showArchived && (
+          {archivedOpen && (
             <div className="mt-3 flex flex-col gap-6">
-              {archived.map((c) => <CardTile key={c.id} card={c} snapshot={snapshot} onImport={() => {}} />)}
+              {archived.map((c) => <CardTile key={c.id} card={c} snapshot={snapshot} highlighted={c.id === focusId} onImport={() => {}} />)}
             </div>
           )}
         </div>
