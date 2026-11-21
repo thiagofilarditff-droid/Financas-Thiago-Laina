@@ -39,8 +39,9 @@ export default function ExportButton({ year, householdId }: { year: number; hous
   const { data: snapshot } = useSnapshot();
   const queryClient = useQueryClient();
   const saved = useQuery({ queryKey: ['sheet-export', userId, year], queryFn: () => findSheetExport(userId, year), enabled: !!userId });
-  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle');
-  const link = saved.data?.url;
+  const [state, setState] = useState<'idle' | 'busy' | 'done' | 'unsaved' | 'error'>('idle');
+  const [freshUrl, setFreshUrl] = useState<{ year: number; url: string } | null>(null);
+  const link = (freshUrl?.year === year ? freshUrl.url : null) ?? saved.data?.url;
 
   async function run() {
     if (!snapshot) return;
@@ -56,7 +57,13 @@ export default function ExportButton({ year, householdId }: { year: number; hous
       });
       const values = buildSheetValues(grid, items);
       const result = await exportYear(year, values, token, saved.data ?? undefined);
-      await saveSheetExport(householdId, userId, year, result.spreadsheetId, result.url);
+      setFreshUrl({ year, url: result.url });
+      try {
+        await saveSheetExport(householdId, userId, year, result.spreadsheetId, result.url);
+      } catch {
+        setState('unsaved');
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ['sheet-export', userId, year] });
       setState('done');
     } catch {
@@ -72,6 +79,7 @@ export default function ExportButton({ year, householdId }: { year: number; hous
         {state === 'busy' ? 'Exportando…' : 'Exportar para o Google Drive'}
       </button>
       {state === 'done' && <span role="status" className="text-sm font-semibold text-good">Planilha atualizada</span>}
+      {state === 'unsaved' && <span role="alert" className="text-sm font-semibold text-warn">Planilha atualizada, mas não consegui guardar o link.</span>}
       {state === 'error' && <span role="alert" className="text-sm font-semibold text-warn">{ERROR_MESSAGE}</span>}
       {link && <a href={link} target="_blank" rel="noreferrer" className="text-sm font-semibold text-accent underline">Abrir planilha</a>}
     </div>

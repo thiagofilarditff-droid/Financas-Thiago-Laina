@@ -36,6 +36,8 @@ describe('exportYear', () => {
     const r = await exportYear(2026, values, 'tok', { spreadsheetId: 'abc' });
     expect(r.spreadsheetId).toBe('abc');
     expect(r.url).toBe('https://docs.google.com/spreadsheets/d/abc/edit');
+    const clear = JSON.parse((f.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(clear.ranges).toEqual(["'Mês a mês'", "'Faturas'"]);
     expect(urls(f)).toEqual([
       'https://sheets.googleapis.com/v4/spreadsheets/abc/values:batchClear',
       'https://sheets.googleapis.com/v4/spreadsheets/abc/values:batchUpdate',

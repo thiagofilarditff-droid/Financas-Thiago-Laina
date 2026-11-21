@@ -38,7 +38,7 @@ export async function exportYear(
   let target: ExportResult | null = null;
   if (existing) {
     try {
-      await call(`${API}/${encodeURIComponent(existing.spreadsheetId)}/values:batchClear`, accessToken, { ranges: [MONTHLY_SHEET, INVOICES_SHEET] });
+      await call(`${API}/${encodeURIComponent(existing.spreadsheetId)}/values:batchClear`, accessToken, { ranges: [`'${MONTHLY_SHEET}'`, `'${INVOICES_SHEET}'`] });
       target = { spreadsheetId: existing.spreadsheetId, url: sheetUrl(existing.spreadsheetId) };
     } catch (e) {
       if (!(e instanceof ApiError && (e.status === 403 || e.status === 404))) throw e;
