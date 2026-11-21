@@ -84,8 +84,8 @@ leia as faturas de cartão em PDF sozinho, incluindo as parceladas, para que ele
   fatura importada é aceitável.
 - Faturas chegam em **PDF**. Bancos conhecidos pelo código antigo: **Nubank e
   Bradesco** (a confirmar com o Thiago e testar com PDFs reais).
-- A chave do Gemini nunca vai para o navegador; a chamada à IA é feita no
-  servidor.
+- A chave do Gemini (projeto com faturamento ativo) nunca vai para o navegador;
+  a chamada à IA é feita no servidor.
 
 ## 6. Abordagens consideradas
 
@@ -106,8 +106,10 @@ O Thiago escolheu **A**.
   https://claude.ai/artifact/6P8KYE1HNiAr9v1aNAjxGZ): fundo claro levemente
   esverdeado, verde-petróleo como cor principal, fonte Manrope, menu lateral,
   bastante espaço em branco, saldo previsto do mês em destaque.
-- Leitura do PDF com IA, mantendo o **Gemini** (o Thiago já tem a chave).
-  *(Decisão do Claude.)*
+- Leitura do PDF com IA usando o **Gemini no plano pago** (faturamento ativado na
+  conta Google), para que os dados das faturas não sejam usados pelo Google para
+  treinar modelos. Escolha do Thiago, depois de comparar com Gemini gratuito,
+  Claude e leitura sem IA (regras por banco). Custo esperado: centavos por mês.
 - Cartão guarda só os 4 últimos dígitos. *(Proposta do Claude, sem objeção.)*
 - Total da fatura entra como despesa no mês do vencimento. *(Proposta do Claude,
   sem objeção.)*
