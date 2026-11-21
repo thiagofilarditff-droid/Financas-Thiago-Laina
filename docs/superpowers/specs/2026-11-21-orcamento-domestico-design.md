@@ -233,6 +233,22 @@ abrir parecido com o que eles usam. *(Decisão do Claude.)*
   automatizados usam o JSON extraído, com nomes e valores trocados. *(Decisão
   do Claude.)*
 
+### 8.6.1 Descontos em folha opcionais
+
+PNR, planos de saúde, Taya Advogados e Clube da Aeronáutica saem do
+contracheque, mas são escolha do casal, então contam como **despesas normais**
+(resposta do Thiago). Regras:
+- O salário líquido usado como receita desconta só os descontos obrigatórios
+  (IR, Pensão Militar, FAMHS). Por isso não há dupla contagem.
+- Essas despesas ficam marcadas "descontada em folha" e aparecem como pagas
+  automaticamente todo mês, mas podem ser editadas e encerradas como qualquer
+  despesa.
+- O cartão do contracheque mostra também, só como informação, o "valor
+  depositado na conta" = líquido − descontos opcionais em folha, para bater com
+  o extrato. *(Decisão do Claude.)*
+- Valores do contracheque da Laina: o seed usa os da imagem de referência; a
+  Laina confere e corrige no app na primeira vez.
+
 ### 8.7 Exportar para o Google Drive
 
 - Botão "Exportar para o Google Drive" na visão mensal. Na primeira vez, o
