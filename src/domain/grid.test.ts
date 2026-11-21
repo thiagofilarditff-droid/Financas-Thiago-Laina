@@ -132,4 +132,49 @@ describe('buildMonthlyGrid', () => {
     expect(g.totals['2026-11'].paidCents).toBe(422155);
     expect(g.paidCountYear).toBe(5 * 12);
   });
+
+  it('projected installments take the category of the plan\'s latest real item', () => {
+    const item = (id: string, n: number, category: string) => ({
+      id, invoiceId: 'inv-x', date: null, description: `MAGAZINE LUIZA ${n}/10`, amountCents: 15000, category,
+      installmentN: n, installmentTotal: 10, planId: 'plan-tv', expenseId: null,
+    });
+    const items = [item('i1', 1, 'Lazer'), item('i2', 2, 'Moradia'), { ...item('i3', 3, 'Educação'), planId: 'other' }];
+    const row = cardRow(buildMonthlyGrid({ ...s, invoices: [], items }, 2027));
+    expect(row.breakdown!['2027-01']).toEqual([{ category: 'Moradia', cents: 15000 }]);
+  });
+
+  it('projected installments without real items fall back to Outras', () => {
+    expect(cardRow(buildMonthlyGrid(s, 2027)).breakdown!['2027-01']).toEqual([{ category: 'Outras', cents: 15000 }]);
+  });
+
+  it('none cells are not one shared mutable object', () => {
+    const g = buildMonthlyGrid(s, 2026);
+    const a = cardRow(g).cells['2026-10'];
+    const late = { ...seedSnapshot.expenses[0], id: 'e-late', startMonth: '2026-06' };
+    const g2 = buildMonthlyGrid({ ...s, expenses: [...s.expenses, late] }, 2026);
+    const b = g2.expenseRows.find((r) => r.refId === 'e-late')!.cells['2026-01'];
+    try { (a as { cents: number }).cents = 999; } catch { /* frozen */ }
+    expect(b).toEqual({ cents: 0, state: 'none' });
+    expect(cardRow(g).cells['2026-09']).toEqual({ cents: 0, state: 'none' });
+  });
+
+  it('adds a Sem detalhamento bucket when items do not add up to the invoice total', () => {
+    const items = [
+      { id: 'i1', invoiceId: 'inv-dez', date: null, description: 'A', amountCents: 100000, category: 'Alimentação', installmentN: null, installmentTotal: null, planId: null, expenseId: null },
+    ];
+    const g = buildMonthlyGrid({ ...s, items }, 2026);
+    expect(cardRow(g).breakdown!['2026-12']).toEqual([
+      { category: 'Alimentação', cents: 100000 },
+      { category: 'Sem detalhamento', cents: 54137 },
+    ]);
+    const over = buildMonthlyGrid({ ...s, items: [{ ...items[0], amountCents: 160000 }] }, 2026);
+    expect(cardRow(over).breakdown!['2026-12']).toEqual([
+      { category: 'Alimentação', cents: 160000 },
+      { category: 'Sem detalhamento', cents: -5863 },
+    ]);
+  });
+
+  it('manual invoice without items is entirely Sem detalhamento', () => {
+    expect(cardRow(buildMonthlyGrid(s, 2026)).breakdown!['2026-12']).toEqual([{ category: 'Sem detalhamento', cents: 154137 }]);
+  });
 });

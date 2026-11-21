@@ -12,6 +12,16 @@
   --warn: #c9774d;
   --radius-card: 14px;
   --radius-inner: 10px;
+  /* Category palette, in order (donut, legend). */
+  --cat-1: #0f7a64;
+  --cat-2: #3d9c87;
+  --cat-3: #74bba9;
+  --cat-4: #a8d6ca;
+  --cat-5: #e0a458;
+  --cat-6: #c9774d;
+  --cat-7: #8a6fb0;
+  --cat-8: #5b8def;
+  --cat-9: #9aa5ba;
 }
 
 @theme inline {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { addMonths, compareMonth, currentMonth, dueDateFor, monthLabel, monthShort, monthsOfYear, toMonth } from './month';
+import { addMonths, compareMonth, currentMonth, dueDateFor, monthLabel, monthShort, monthName, monthsOfYear, toMonth } from './month';
 
 describe('month', () => {
   test('addMonths crosses year boundaries', () => {
@@ -32,6 +32,10 @@ describe('month', () => {
     expect(dueDateFor('2028-02', 30)).toBe('2028-02-29');
     expect(dueDateFor('2026-11', 10)).toBe('2026-11-10');
     expect(dueDateFor('2026-11', 31)).toBe('2026-11-30');
+  });
+  test('monthName is the full pt-BR month name', () => {
+    expect(monthName('2026-11')).toBe('Novembro');
+    expect(monthName('2027-03')).toBe('Março');
   });
   test('currentMonth matches YYYY-MM', () => {
     expect(currentMonth()).toMatch(/^\d{4}-\d{2}$/);

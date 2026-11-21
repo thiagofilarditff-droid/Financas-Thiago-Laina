@@ -43,7 +43,8 @@ export function installmentDueMonth(p: InstallmentPlan, n: number): Month {
   return addMonths(p.firstDueMonth, n - 1);
 }
 
-function pendingInstallments(plans: InstallmentPlan[], items: InvoiceItem[], cardId: string): ProjectedItem[] {
+/** Installments of the card's plans that have no real invoice item yet. */
+export function pendingInstallments(plans: InstallmentPlan[], items: InvoiceItem[], cardId: string): ProjectedItem[] {
   const real = new Set(items.filter((i) => i.planId !== null).map((i) => `${i.planId}#${i.installmentN}`));
   const out: ProjectedItem[] = [];
   for (const p of plans) {

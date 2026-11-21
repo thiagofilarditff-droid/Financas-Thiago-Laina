@@ -1,4 +1,4 @@
-import type { Card, Cents, Month, Snapshot } from './types';
+import type { Card, Cents, InvoiceItem, Month, Snapshot } from './types';
 import { monthsOfYear } from './month';
 import { incomeRowsFor } from './incomes';
 import { entryFor, isActiveIn, cardFixedExpensesFor } from './expenses';
@@ -16,10 +16,22 @@ export interface MonthlyGrid {
   totals: Record<Month, MonthTotals>; paidCountYear: number;
 }
 
-// Projected installments carry no category of their own.
-const PROJECTED_INSTALLMENT_CATEGORY = 'Outras';
+/** Category of a projected installment whose plan has no real item yet. */
+const FALLBACK_INSTALLMENT_CATEGORY = 'Outras';
+/** Difference between an invoice's total and the sum of its items. */
+export const UNDETAILED_CATEGORY = 'Sem detalhamento';
 
-const NONE: GridCell = { cents: 0, state: 'none' };
+const none = (): GridCell => ({ cents: 0, state: 'none' });
+
+/** A projected installment takes the category of its plan's latest real item (highest installment number). */
+function planCategory(items: InvoiceItem[], planId: string): string {
+  let latest: InvoiceItem | null = null;
+  for (const it of items) {
+    if (it.planId !== planId) continue;
+    if (!latest || (it.installmentN ?? 0) > (latest.installmentN ?? 0)) latest = it;
+  }
+  return latest?.category ?? FALLBACK_INSTALLMENT_CATEGORY;
+}
 
 function groupByCategory(parts: { category: string; cents: Cents }[]): { category: string; cents: Cents }[] {
   const out: { category: string; cents: Cents }[] = [];
@@ -44,7 +56,7 @@ function buildIncomeRows(s: Snapshot, months: Month[]): GridRow[] {
       row.cells[m] = { cents: r.cents, state: 'pending' };
     }
   }
-  for (const row of rows.values()) for (const m of months) row.cells[m] ??= NONE;
+  for (const row of rows.values()) for (const m of months) row.cells[m] ??= none();
   return [...rows.values()];
 }
 
@@ -55,7 +67,7 @@ function buildExpenseRows(s: Snapshot, months: Month[]): GridRow[] {
     const cells: Record<Month, GridCell> = {};
     for (const m of months) {
       const entry = entryFor(e, s.entries, m);
-      cells[m] = entry ? { cents: entry.amountCents, state: entry.paid ? 'paid' : 'pending' } : NONE;
+      cells[m] = entry ? { cents: entry.amountCents, state: entry.paid ? 'paid' : 'pending' } : none();
     }
     rows.push({
       key: `expense:${e.id}`, kind: 'expense', refId: e.id, label: e.name,
@@ -72,18 +84,19 @@ function buildCardRow(s: Snapshot, card: Card, months: Month[]): GridRow {
     const invoice = s.invoices.find((i) => i.cardId === card.id && i.dueMonth === m);
     if (invoice) {
       cells[m] = { cents: invoice.totalCents, state: invoice.paid ? 'paid' : 'pending' };
-      breakdown[m] = groupByCategory(
-        s.items.filter((it) => it.invoiceId === invoice.id).map((it) => ({ category: it.category, cents: it.amountCents })),
-      );
+      const parts = s.items.filter((it) => it.invoiceId === invoice.id).map((it) => ({ category: it.category, cents: it.amountCents }));
+      const rest = invoice.totalCents - parts.reduce((sum, p) => sum + p.cents, 0);
+      if (rest !== 0) parts.push({ category: UNDETAILED_CATEGORY, cents: rest });
+      breakdown[m] = groupByCategory(parts);
       continue;
     }
     const parts = [
       ...projectedItemsFor(s.plans, s.items, s.invoices, card.id, m)
-        .map((p) => ({ category: PROJECTED_INSTALLMENT_CATEGORY, cents: p.amountCents })),
+        .map((p) => ({ category: planCategory(s.items, p.planId), cents: p.amountCents })),
       ...cardFixedExpensesFor(s, card.id, m).map((r) => ({ category: r.expense.category, cents: r.entry.amountCents })),
     ];
     const cents = parts.reduce((sum, p) => sum + p.cents, 0);
-    cells[m] = cents === 0 ? NONE : { cents, state: 'projected' };
+    cells[m] = cents === 0 ? none() : { cents, state: 'projected' };
     breakdown[m] = groupByCategory(parts);
   }
   return { key: `card:${card.id}`, kind: 'card', refId: card.id, label: card.name, sublabel: 'Cartão', cells, breakdown };

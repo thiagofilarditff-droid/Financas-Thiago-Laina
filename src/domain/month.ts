@@ -42,6 +42,12 @@ export function monthShort(m: Month): string {
   return LABELS[parts(m)[1] - 1].toUpperCase();
 }
 
+const NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+export function monthName(m: Month): string {
+  return NAMES[parts(m)[1] - 1];
+}
+
 export function dueDateFor(m: Month, day: number): string {
   const [y, mo] = parts(m);
   const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
