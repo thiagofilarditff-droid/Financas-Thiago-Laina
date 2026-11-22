@@ -11,6 +11,15 @@ Passo a passo para colocar o app no ar, na ordem abaixo.
 
 ## Parte 1 — Supabase (banco de dados e login)
 
+> **Caminho só pelo navegador (sem terminal).** Em vez dos passos 2, 5 e 6 abaixo,
+> abra o SQL Editor do Supabase e rode, **cada um num editor novo (+ → Create a new
+> snippet)**, os arquivos `docs/setup/1-banco-de-dados.sql` (tabelas, regras de
+> segurança e permissões) e depois `docs/setup/2-dados-iniciais.sql` (troque os dois
+> `TROCAR` pelos e-mails dos usuários). As chaves vão direto na Vercel (Parte 4).
+> Cuidados: confira o **nome do projeto** no topo da tela (ter dois projetos é a
+> causa mais comum de erro) e **desligue a tradução automática** do navegador no
+> Supabase e no GitHub, porque ela estraga o código copiado.
+
 ### 1. Criar o projeto
 
 1. Entre em <https://supabase.com> e crie uma conta (o plano gratuito basta).
@@ -26,7 +35,7 @@ No terminal, dentro da pasta do projeto:
 npm install
 npx supabase login                         # abre o navegador para autorizar
 npx supabase link --project-ref SEU_REF    # o "ref" está em Project Settings → General
-npx supabase db push                       # cria tabelas, regras de acesso e o bucket "invoices"
+npx supabase db push                       # cria tabelas, regras de acesso, permissões e o bucket "invoices"
 ```
 
 O `link` pede a senha do banco criada no passo 1.
