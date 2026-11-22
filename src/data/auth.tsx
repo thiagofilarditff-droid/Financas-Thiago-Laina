@@ -10,6 +10,8 @@ interface AuthValue {
   householdId: string | null;
   /** Set when the household lookup failed (network, server), as opposed to "no household". */
   loadError: string | null;
+  /** Technical reason behind loadError (shown small, so problems can be diagnosed). */
+  loadDetail: string | null;
   loading: boolean;
   signIn(email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
@@ -40,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [householdId, setHouseholdId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadDetail, setLoadDetail] = useState<string | null>(null);
 
   const userId = useRef<string | null | undefined>(undefined);
 
@@ -58,14 +61,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTimeout(async () => {
         let hid: string | null = null;
         let err: string | null = null;
+        let detail: string | null = null;
         try {
           hid = uid ? await householdOf(uid) : null;
-        } catch {
+        } catch (e) {
           err = CONNECTION_ERROR;
+          detail = e instanceof Error ? e.message : String(e);
         }
         if (!active || userId.current !== uid) return;
         setHouseholdId(hid);
         setLoadError(err);
+        setLoadDetail(detail);
         setLoading(false);
       }, 0);
     }
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     householdId,
     loadError,
+    loadDetail,
     loading,
     async signIn(email, password) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -111,14 +118,15 @@ const Centered = ({ children }: { children: ReactNode }) => (
 
 /** Route guard: renders the child routes only for a signed-in member of a household. */
 export function RequireAuth() {
-  const { session, householdId, loadError, loading, signOut } = useAuth();
+  const { session, householdId, loadError, loadDetail, loading, signOut } = useAuth();
   if (loading) return <Centered><p className="text-muted">Carregando…</p></Centered>;
   if (!session) return <Navigate to="/login" replace />;
   if (loadError) {
     return (
       <Centered>
         <div className="max-w-md rounded-card border border-line bg-card p-6 text-center">
-          <p role="alert" className="mb-4">{loadError}</p>
+          <p role="alert" className="mb-2">{loadError}</p>
+          {loadDetail && <p className="mb-4 break-words text-xs text-muted">Detalhe técnico: {loadDetail}</p>}
           <button className="font-semibold text-accent" onClick={() => window.location.reload()}>Tentar de novo</button>
         </div>
       </Centered>
